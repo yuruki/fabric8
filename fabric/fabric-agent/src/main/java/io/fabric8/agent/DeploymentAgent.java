@@ -373,10 +373,19 @@ public class DeploymentAgent implements ManagedService {
         MavenResolver resolver = MavenResolvers.createMavenResolver(properties, "org.ops4j.pax.url.mvn");
         final DownloadManager manager = DownloadManagers.createDownloadManager(resolver, getDownloadExecutor());
         manager.addListener(new DownloadCallback() {
+
+            // previous status message
+            private String previous;
+
             @Override
             public void downloaded(StreamProvider provider) throws Exception {
                 int pending = manager.pending();
-                updateStatus(pending > 0 ? "downloading (" + pending + " pending)" : "downloading", null);
+                String status = pending > 0 ? "downloading (" + pending + " pending)" : "downloading";
+                // only update the status message if it actually changed
+                if (!status.equals(previous)) {
+                    updateStatus(status, null);
+                    previous = status;
+                }
             }
         });
 
