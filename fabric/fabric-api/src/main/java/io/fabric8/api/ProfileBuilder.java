@@ -72,6 +72,8 @@ public interface ProfileBuilder extends AttributableBuilder<ProfileBuilder> {
 
     ProfileBuilder setFeatures(List<String> values);
 
+    ProfileBuilder setLibs(List<String> values);
+
     ProfileBuilder setRepositories(List<String> values);
 
     ProfileBuilder setOverrides(List<String> values);

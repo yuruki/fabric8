@@ -46,8 +46,11 @@ public class PatchServiceImpl implements PatchService {
     private static final String PATCH_DESCRIPTION = "description";
     private static final String PATCH_BUNDLES = "bundle";
     private static final String PATCH_REQUIREMENTS = "requirement";
+    private static final String PATCH_FILES = "file";
     private static final String PATCH_COUNT = "count";
     private static final String PATCH_RANGE = "range";
+    private static final String PATCH_URL = "url";
+
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PatchServiceImpl.class);
 
@@ -140,6 +143,7 @@ public class PatchServiceImpl implements PatchService {
                     String versionId = version.getId();
                     ProfileBuilder builder = ProfileBuilder.Factory.create(versionId, profileId);
                     builder.setOverrides(descriptor.getBundles());
+                    builder.setLibs(descriptor.getLibs());
                     profile = profileService.createProfile(builder.getProfile());
                     Profile defaultProfile = version.getRequiredProfile("default");
                     List<String> parentIds = new LinkedList<String>();
@@ -207,6 +211,9 @@ public class PatchServiceImpl implements PatchService {
         final String description;
         final List<String> bundles;
         final List<String> requirements;
+        final List<String> libs;
+        final List<String> endorsedLibs;
+        final List<String> extLibs;
 
         PatchDescriptor(Properties properties) {
             this.id = properties.getProperty(PATCH_ID);
@@ -224,6 +231,7 @@ public class PatchServiceImpl implements PatchService {
 
                 this.bundles.add(url);
             }
+
             // parse the requirements
             this.requirements = new LinkedList<String>();
             count = Integer.parseInt(properties.getProperty(PATCH_REQUIREMENTS + "." + PATCH_COUNT, "0"));
@@ -231,13 +239,27 @@ public class PatchServiceImpl implements PatchService {
                 String requirement = properties.getProperty(PATCH_REQUIREMENTS + "." + Integer.toString(i));
                 this.requirements.add(requirement);
             }
-        }
 
-        PatchDescriptor(String id, String description, List<String> bundles, List<String> requirements) {
-            this.id = id;
-            this.description = description;
-            this.bundles = bundles;
-            this.requirements = requirements;
+            libs = new LinkedList<>();
+            endorsedLibs = new LinkedList<>();
+            extLibs = new LinkedList<>();
+            count = Integer.parseInt(properties.getProperty(PATCH_FILES + "." + PATCH_COUNT, "0"));
+            for (int i = 0; i < count; i++) {
+                String value = properties.getProperty(PATCH_FILES + "." + i);
+                String url = properties.getProperty(PATCH_FILES + "." + i + "." + PATCH_URL);
+                if (url != null) {
+                    if (value.startsWith("lib/endorsed/")) {
+                        String name = value.replaceFirst("lib/endorsed/", "");
+                        endorsedLibs.add(String.format("%s;filename=%s", url, name));
+                    } else if (value.startsWith("lib/ext/")) {
+                        String name = value.replaceFirst("lib/ext/", "");
+                        extLibs.add(String.format("%s;filename=%s", url, name));
+                    } else if (value.startsWith("lib/")) {
+                        String name = value.replaceFirst("lib/", "");
+                        libs.add(String.format("%s;filename=%s", url, name));
+                    }
+                }
+            }
         }
 
         public String getId() {
@@ -255,6 +277,20 @@ public class PatchServiceImpl implements PatchService {
         public List<String> getRequirements() {
             return requirements;
         }
+
+        public List<String> getLibs() {
+            return libs;
+        }
+
+        public List<String> getEndorsedLibs() {
+            return endorsedLibs;
+        }
+
+        public List<String> getExtLibs() {
+            return extLibs;
+        }
+
+
     }
 
 

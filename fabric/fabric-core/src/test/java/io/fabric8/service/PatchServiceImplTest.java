@@ -75,6 +75,21 @@ public class PatchServiceImplTest {
     }
 
     @Test
+    public void testPatchDescriptorWithLibs() throws IOException {
+        PatchServiceImpl.PatchDescriptor descriptor = getPatchDescriptor("test5.patch");
+        assertEquals(1, descriptor.getLibs().size());
+        assertEquals("mvn:org.apache.karaf/org.apache.karaf.main/2.4.0.jar;filename=karaf.jar",
+                descriptor.getLibs().get(0));
+        assertEquals(1, descriptor.getEndorsedLibs().size());
+        assertEquals("mvn:org.apache.servicemix.specs/org.apache.servicemix.specs.stax-api-1.2/2.5.0;filename=org.apache.servicemix.specs.stax-api-1.2-2.5.0.jar",
+                descriptor.getEndorsedLibs().get(0));
+        assertEquals(1, descriptor.getExtLibs().size());
+        assertEquals("mvn:org.bouncycastle/bcprov-jdk15on/1.52;filename=bcprov-jdk15on.jar",
+                descriptor.getExtLibs().get(0));
+
+    }
+
+    @Test
     public void testCheckRequirementsSatisfied() throws IOException {
         PatchServiceImpl.PatchDescriptor descriptor = getPatchDescriptor("test3.patch");
         Version version =
