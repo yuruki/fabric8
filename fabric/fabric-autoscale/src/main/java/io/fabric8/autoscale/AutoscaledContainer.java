@@ -6,20 +6,38 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 
 import io.fabric8.api.Container;
 import io.fabric8.api.Profile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ContainerJob implements Runnable {
+public class AutoscaledContainer implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AutoScaleController.class);
+
     private final Container container;
     private final Map<Profile, Boolean> profiles = new HashMap<>();
+    private final Matcher profilePattern;
 
-    public ContainerJob(Container container) {
+    public AutoscaledContainer(Container container, Matcher profilePattern) {
         this.container = container;
+        this.profilePattern = profilePattern;
+
+        // Collect current profiles
+        for (Profile profile : Arrays.asList(container.getProfiles())) {
+            if (profilePattern.reset(profile.getId()).matches()) {
+                addProfile(profile);
+            }
+        }
+
+    }
+
+    public AutoscaledContainer(String containerId, Matcher profilePattern) {
+        this.profilePattern = profilePattern;
+        // Create a new container
+        // TODO: 13.2.2016
     }
 
     public Container getContainer() {
@@ -36,7 +54,7 @@ public class ContainerJob implements Runnable {
         return count;
     }
 
-    public String getIp() {
+    public String getHostId() {
         return container.getIp();
     }
 
