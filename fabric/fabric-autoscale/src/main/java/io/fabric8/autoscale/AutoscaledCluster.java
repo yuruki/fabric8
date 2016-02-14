@@ -52,7 +52,7 @@ public class AutoscaledCluster {
         // Collect all applicable containers
         for (Container container : Arrays.asList(service.getContainers())) {
             if (containerPattern.reset(container.getId()).matches() && container.isAlive()) {
-                addAutoscaledContainer(new AutoscaledContainer(container, profilePattern));
+                addAutoscaledContainer(createAutoscaledContainer(container));
             }
         }
 
@@ -68,6 +68,10 @@ public class AutoscaledCluster {
         }
     }
 
+    private AutoscaledContainer createAutoscaledContainer(Container container) {
+        return new AutoscaledContainer(container, profilePattern, hostMap);
+    }
+
     private void adjustContainerCount(int delta) {
         if (delta > 0) {
             // Remove containers
@@ -81,12 +85,16 @@ public class AutoscaledCluster {
             for (int i = delta; i < 0; i++) {
                 try {
                     String containerId = createContainerId();
-                    addAutoscaledContainer(new AutoscaledContainer(containerId, profilePattern));
+                    addAutoscaledContainer(createAutoscaledContainer(containerId));
                 } catch (Exception e) {
                     LOGGER.error("Failed to create new auto-scaled container.", e);
                 }
             }
         }
+    }
+
+    private AutoscaledContainer createAutoscaledContainer(String containerId) {
+        return new AutoscaledContainer(containerId, profilePattern, hostMap);
     }
 
     private String createContainerId() throws Exception {
@@ -104,15 +112,20 @@ public class AutoscaledCluster {
 
     private void addProfileRequirements(ProfileRequirements profileRequirements) {
         profileRequirementsMap.put(profileRequirements.getProfile(), profileRequirements);
-        adjustProfileAgainstMaxInstancesPerHost(profileRequirements);
-        adjustProfileAgainstMaxInstancesPerContainer(profileRequirements);
-        adjustProfileAgainstMaxInstances(profileRequirements);
-        adjustProfileAgainstMinInstances(profileRequirements);
+        adjustWithMaxInstancesPerHost(profileRequirements);
+        adjustWithMaxInstancesPerContainer(profileRequirements);
+        adjustWithMaxInstances(profileRequirements);
+        adjustWithMinInstances(profileRequirements);
     }
 
-    private Boolean createContainers(int count) {
-        // todo
-        return true;
+    private void adjustWithMaxInstancesPerHost(ProfileRequirements profileRequirements) {
+        String profileId = profileRequirements.getProfile();
+        int maxInstancesPerHost = profileRequirements.getMaximumInstancesPerHost();
+        for (AutoscaledHost host : hostMap.values()) {
+            if (host.getProfileCount(profileId) > maxInstancesPerHost) {
+                host.removeProfile(profileId, );
+            }
+        }
     }
 
     private void addAutoscaledContainer(AutoscaledContainer container) {
