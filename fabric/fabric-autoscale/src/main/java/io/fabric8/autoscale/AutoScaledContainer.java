@@ -14,21 +14,22 @@ import io.fabric8.api.Profile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AutoscaledContainer implements Runnable, ProfileContainer {
+public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AutoScaleController.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AutoScaledContainer.class);
 
     private final Container container;
-    private final String containerId;
-    private final Map<String, AutoscaledHost> hostMap;
+    private final String id;
+    private final Map<String, AutoScaledHost> hostMap;
     private final Map<Profile, Boolean> profiles = new HashMap<>();
     private final Matcher profilePattern;
 
-    private AutoscaledHost host;
+    private AutoScaledHost host;
+    private Boolean remove = false;
 
-    public AutoscaledContainer(Container container, String containerId, Matcher profilePattern, Map<String, AutoscaledHost> hostMap) {
+    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap) {
         this.container = container;
-        this.containerId = containerId;
+        this.id = id;
         this.profilePattern = profilePattern;
         this.hostMap = hostMap;
 
@@ -46,27 +47,35 @@ public class AutoscaledContainer implements Runnable, ProfileContainer {
         if (container != null) {
             for (Profile profile : Arrays.asList(container.getProfiles())) {
                 if (profilePattern.reset(profile.getId()).matches()) {
-                    addProfile(profile);
+                    try {
+                        addProfile(profile);
+                    } catch (Exception e) {
+                        LOGGER.error("Couldn't add profile {} to container {}", profile.getId(), id);
+                    }
                 }
             }
         }
     }
 
-    public AutoscaledContainer(String containerId, Matcher profilePattern, Map<String, AutoscaledHost> hostMap) {
-        this(null, containerId, profilePattern, hostMap);
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledCluster cluster, Container container) {
+        return new AutoScaledContainer(container, container.getId(), cluster.getProfilePattern(), cluster.getHostMap());
     }
 
-    private void setHost(AutoscaledHost host) {
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledCluster cluster, String id) {
+        return new AutoScaledContainer(null, id, cluster.getProfilePattern(), cluster.getHostMap());
+    }
+
+    private void setHost(AutoScaledHost host) {
         this.host = host;
         hostMap.put(host.getId(), host);
-        host.addAutoscaledContainer(this);
+        host.addAutoScaledContainer(this);
     }
 
     private void setHost(String hostId) {
         if (hostMap.containsKey(hostId)) {
             setHost(hostMap.get(hostId));
         } else {
-            setHost(new AutoscaledHost(hostId));
+            setHost(new AutoScaledHost(hostId));
         }
     }
 
@@ -82,33 +91,8 @@ public class AutoscaledContainer implements Runnable, ProfileContainer {
     }
 
     @Override
-    public String getId() {
-        return containerId;
-    }
+    public void addProfile(String profileId, int count) throws Exception {
 
-    @Override
-    public void addProfile(Profile profile) {
-        profiles.put(profile, true);
-    }
-
-    @Override
-    public void addProfile(String profileId) {
-        addProfile(container.getVersion().getProfile(profileId));
-    }
-
-    @Override
-    public void removeProfile(Profile profile) {
-        profiles.put(profile, false);
-    }
-
-    @Override
-    public void removeProfile(String profileId) {
-        removeProfile(container.getVersion().getProfile(profileId));
-    }
-
-    @Override
-    public void removeProfile(Profile profile, int count) {
-        removeProfile(profile); // Ignore count
     }
 
     @Override
@@ -124,21 +108,8 @@ public class AutoscaledContainer implements Runnable, ProfileContainer {
     }
 
     @Override
-    public boolean hasProfile(Profile profile) {
-        return profiles.containsKey(profile) && profiles.get(profile);
-    }
-
-    @Override
     public boolean hasProfile(String profileId) {
         return hasProfile(container.getVersion().getProfile(profileId));
-    }
-
-    @Override
-    public int getProfileCount(Profile profile) {
-        if (profiles.containsKey(profile) && profiles.get(profile)) {
-            return 1;
-        }
-        return 0;
     }
 
     @Override
@@ -170,5 +141,11 @@ public class AutoscaledContainer implements Runnable, ProfileContainer {
             LOGGER.info("Setting profiles for container {}", container.getId());
             container.setProfiles(sortedResult);
         }
+    }
+
+    public void remove() {
+        this.remove = true;
+        host.removeAutoScaledContainer(this);
+        profiles.clear();
     }
 }

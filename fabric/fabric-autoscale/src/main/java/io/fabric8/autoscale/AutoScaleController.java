@@ -387,7 +387,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     }
 
     private void autoScaleProfileAssignments(FabricService service, FabricRequirements requirements, List<ProfileRequirements> profileRequirements) {
-        final Map<Container, AutoscaledContainer> containerJobMap = new HashMap<>();
+        final Map<Container, AutoScaledContainer> containerJobMap = new HashMap<>();
         Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
         for (ProfileRequirements p : profileRequirements) {
             profileRequirementsMap.put(p.getProfile(), p);
@@ -396,7 +396,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
             // Collect all applicable containers
             for (Container container : Arrays.asList(service.getContainers())) {
                 if (containerPattern.reset(container.getId()).matches() && container.isAlive()) {
-                    containerJobMap.put(container, new AutoscaledContainer(container));
+                    containerJobMap.put(container, new AutoScaledContainer(container));
                 }
             }
 
@@ -420,8 +420,8 @@ public final class AutoScaleController extends AbstractComponent implements Grou
             }
 
             // Check against max profile assignments per container
-            for (AutoscaledContainer autoscaledContainer : containerJobMap.values()) {
-                autoscaledContainer.removeProfiles(autoscaledContainer.getProfileCount() - maxProfilesPerContainer);
+            for (AutoScaledContainer autoScaledContainer : containerJobMap.values()) {
+                autoScaledContainer.removeProfiles(autoScaledContainer.getProfileCount() - maxProfilesPerContainer);
             }
 
             for (ProfileRequirements profileRequirement : profileRequirements) {
@@ -431,60 +431,60 @@ public final class AutoScaleController extends AbstractComponent implements Grou
                 final Integer maximumInstancesPerHost = (profileRequirement.getMaximumInstancesPerHost() != null) ? profileRequirement.getMaximumInstancesPerHost() : defaultMaximumInstancesPerHost;
 
                 // Get containerJobs for this profile
-                List<AutoscaledContainer> autoscaledContainerJobsForProfile = getContainerJobsForProfile(containerJobMap.values(), profileId);
+                List<AutoScaledContainer> autoScaledContainerJobsForProfile = getContainerJobsForProfile(containerJobMap.values(), profileId);
 
                 // Put container with least profiles first
-                Collections.sort(autoscaledContainerJobsForProfile, new SortContainerJobsByProfileCount());
+                Collections.sort(autoScaledContainerJobsForProfile, new SortContainerJobsByProfileCount());
 
                 // Check against max profile instances per host
                 Map<String, Integer> instancesPerHosts = new HashMap<>();
-                Iterator<AutoscaledContainer> iterator = autoscaledContainerJobsForProfile.iterator();
+                Iterator<AutoScaledContainer> iterator = autoScaledContainerJobsForProfile.iterator();
                 while (iterator.hasNext()) {
-                    AutoscaledContainer autoscaledContainer = iterator.next();
+                    AutoScaledContainer autoScaledContainer = iterator.next();
                     int instancesPerHost = 0;
-                    if (instancesPerHosts.get(autoscaledContainer.getHostId()) != null) {
-                        instancesPerHost = instancesPerHosts.get(autoscaledContainer.getHostId());
+                    if (instancesPerHosts.get(autoScaledContainer.getHostId()) != null) {
+                        instancesPerHost = instancesPerHosts.get(autoScaledContainer.getHostId());
                     }
                     if (instancesPerHost >= maximumInstancesPerHost) {
-                        autoscaledContainer.removeProfile(profileId); // Remove profile instances that violate maximumInstancesPerHost
+                        autoScaledContainer.removeProfile(profileId); // Remove profile instances that violate maximumInstancesPerHost
                         iterator.remove(); // Remove containerJob for this profile
                     } else {
-                        instancesPerHosts.put(autoscaledContainer.getHostId(), instancesPerHost + 1);
+                        instancesPerHosts.put(autoScaledContainer.getHostId(), instancesPerHost + 1);
                     }
                 }
 
                 // Check against max instances
                 if (maximumInstances != null) {
-                    int delta = autoscaledContainerJobsForProfile.size() - maximumInstances;
+                    int delta = autoScaledContainerJobsForProfile.size() - maximumInstances;
                     if (delta > 0) {
                         // Put container with most profiles first
-                        Collections.sort(autoscaledContainerJobsForProfile, Collections.reverseOrder(new SortContainerJobsByProfileCount()));
-                        iterator = autoscaledContainerJobsForProfile.iterator();
+                        Collections.sort(autoScaledContainerJobsForProfile, Collections.reverseOrder(new SortContainerJobsByProfileCount()));
+                        iterator = autoScaledContainerJobsForProfile.iterator();
                         for (int i = 0; iterator.hasNext() && i < delta; i++) {
-                            AutoscaledContainer autoscaledContainer = iterator.next();
-                            autoscaledContainer.removeProfile(profileId); // Remove profile instances that violate maximumInstances
+                            AutoScaledContainer autoScaledContainer = iterator.next();
+                            autoScaledContainer.removeProfile(profileId); // Remove profile instances that violate maximumInstances
                             iterator.remove(); // Remove containerJob for this profile
-                            instancesPerHosts.put(autoscaledContainer.getHostId(), instancesPerHosts.get(autoscaledContainer.getHostId()) - 1);
+                            instancesPerHosts.put(autoScaledContainer.getHostId(), instancesPerHosts.get(autoScaledContainer.getHostId()) - 1);
                         }
                     }
                 }
 
                 // Check against min instances
                 if (minimumInstances != null) {
-                    int delta = minimumInstances - autoscaledContainerJobsForProfile.size();
+                    int delta = minimumInstances - autoScaledContainerJobsForProfile.size();
                     if (delta > 0) {
-                        List<AutoscaledContainer> applicableContainers = new ArrayList<>(containerJobMap.values());
+                        List<AutoScaledContainer> applicableContainers = new ArrayList<>(containerJobMap.values());
                         // Container with least profiles first
                         Collections.sort(applicableContainers, new SortContainerJobsByProfileCount());
-                        for (AutoscaledContainer autoscaledContainer : applicableContainers) {
+                        for (AutoScaledContainer autoScaledContainer : applicableContainers) {
                             int instancesPerHost = 0;
-                            if (instancesPerHosts.get(autoscaledContainer.getHostId()) != null) {
-                                instancesPerHost = instancesPerHosts.get(autoscaledContainer.getHostId());
+                            if (instancesPerHosts.get(autoScaledContainer.getHostId()) != null) {
+                                instancesPerHost = instancesPerHosts.get(autoScaledContainer.getHostId());
                             }
                             if (instancesPerHost < maximumInstancesPerHost) { // Watch for maximumInstancesPerHost
-                                autoscaledContainer.addProfile(profileId); // Add missing profile instances
-                                autoscaledContainerJobsForProfile.add(autoscaledContainer); // Add ContainerJob for this profile
-                                instancesPerHosts.put(autoscaledContainer.getHostId(), instancesPerHost + 1);
+                                autoScaledContainer.addProfile(profileId); // Add missing profile instances
+                                autoScaledContainerJobsForProfile.add(autoScaledContainer); // Add ContainerJob for this profile
+                                instancesPerHosts.put(autoScaledContainer.getHostId(), instancesPerHost + 1);
                                 delta--;
                             }
                         }
@@ -496,28 +496,28 @@ public final class AutoScaleController extends AbstractComponent implements Grou
             }
 
             // Clean up matching profiles that have no requirements
-            for (AutoscaledContainer autoscaledContainer : containerJobMap.values()) {
-                for (Profile profile : Arrays.asList(autoscaledContainer.getContainer().getProfiles())) {
+            for (AutoScaledContainer autoScaledContainer : containerJobMap.values()) {
+                for (Profile profile : Arrays.asList(autoScaledContainer.getContainer().getProfiles())) {
                     if (profilePattern.reset(profile.getId()).matches() && !profileRequirementsMap.containsKey(profile.getId())) {
-                        autoscaledContainer.removeProfile(profile);
+                        autoScaledContainer.removeProfile(profile);
                     }
                 }
             }
 
             // Apply changes to containers
-            for (AutoscaledContainer autoscaledContainer : containerJobMap.values()) {
-                new Thread(autoscaledContainer, "ContainerJob for container " + autoscaledContainer.getId()).start();
+            for (AutoScaledContainer autoScaledContainer : containerJobMap.values()) {
+                new Thread(autoScaledContainer, "ContainerJob for container " + autoScaledContainer.getId()).start();
             }
         } catch (Exception e) {
             LOGGER.error("Failed to auto-scale with profiles. Caught: " + e, e);
         }
     }
 
-    private static List<AutoscaledContainer> getContainerJobsForProfile(Collection<AutoscaledContainer> autoscaledContainers, String profileId) {
-        List<AutoscaledContainer> result = new ArrayList<>();
-        for (AutoscaledContainer autoscaledContainer : autoscaledContainers) {
-            if (autoscaledContainer.hasProfile(profileId)) {
-                result.add(autoscaledContainer);
+    private static List<AutoScaledContainer> getContainerJobsForProfile(Collection<AutoScaledContainer> autoScaledContainers, String profileId) {
+        List<AutoScaledContainer> result = new ArrayList<>();
+        for (AutoScaledContainer autoScaledContainer : autoScaledContainers) {
+            if (autoScaledContainer.hasProfile(profileId)) {
+                result.add(autoScaledContainer);
             }
         }
         return result;
@@ -567,10 +567,10 @@ public final class AutoScaleController extends AbstractComponent implements Grou
         this.curator.unbind(curator);
     }
 
-    private class SortContainerJobsByProfileCount implements Comparator<AutoscaledContainer> {
+    private class SortContainerJobsByProfileCount implements Comparator<AutoScaledContainer> {
         @Override
-        public int compare(AutoscaledContainer autoscaledContainer, AutoscaledContainer t1) {
-            return autoscaledContainer.getProfileCount() - t1.getProfileCount();
+        public int compare(AutoScaledContainer autoScaledContainer, AutoScaledContainer t1) {
+            return autoScaledContainer.getProfileCount() - t1.getProfileCount();
         }
     }
 }

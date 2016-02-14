@@ -2,28 +2,53 @@ package io.fabric8.autoscale;
 
 import io.fabric8.api.Profile;
 
-public interface ProfileContainer {
-    boolean hasProfile(Profile profile);
+public abstract class ProfileContainer {
 
-    boolean hasProfile(String profileId);
+    protected String id = "default";
 
-    void addProfile(Profile profile) throws Exception;
+    final public boolean hasProfile(Profile profile) {
+        return hasProfile(profile.getId());
+    }
 
-    void addProfile(String profileId) throws Exception;
+    public abstract boolean hasProfile(String profileId);
 
-    void removeProfile(Profile profile);
+    final public void addProfile(Profile profile) throws Exception {
+        addProfile(profile.getId(), 1);
+    }
 
-    void removeProfile(String profileId);
+    final public void addProfile(String profileId) throws Exception {
+        addProfile(profileId, 1);
+    }
 
-    void removeProfile(Profile profile, int count);
+    final public void addProfile(Profile profile, int count) throws Exception {
+        addProfile(profile.getId(), count);
+    }
 
-    void removeProfile(String profile, int count);
+    public abstract void addProfile(String profileId, int count) throws Exception;
 
-    int getProfileCount();
+    final public void removeProfile(Profile profile) {
+        removeProfile(profile.getId(), 1);
+    }
 
-    int getProfileCount(Profile profile);
+    final public void removeProfile(String profileId) {
+        removeProfile(profileId, 1);
+    }
 
-    int getProfileCount(String profileId);
+    final public void removeProfile(Profile profile, int count) {
+        removeProfile(profile.getId(), 1);
+    }
 
-    String getId();
+    public abstract void removeProfile(String profile, int count);
+
+    public abstract int getProfileCount();
+
+    final public int getProfileCount(Profile profile) {
+        return getProfileCount(profile.getId());
+    }
+
+    public abstract int getProfileCount(String profileId);
+
+    final public String getId() {
+        return id;
+    }
 }
