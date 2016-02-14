@@ -57,12 +57,12 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         }
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledCluster cluster, Container container) {
-        return new AutoScaledContainer(container, container.getId(), cluster.getProfilePattern(), cluster.getHostMap());
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) {
+        return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap());
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledCluster cluster, String id) {
-        return new AutoScaledContainer(null, id, cluster.getProfilePattern(), cluster.getHostMap());
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id) {
+        return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap());
     }
 
     private void setHost(AutoScaledHost host) {

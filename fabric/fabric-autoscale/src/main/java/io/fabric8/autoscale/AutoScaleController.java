@@ -90,6 +90,9 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     @Property(value = ".*", label = "Container name pattern", description = "Containers matching this regex will be use for assignment autoscaling.")
     private static final String CONTAINER_PATTERN = "containerPattern";
     private Matcher containerPattern;
+    @Property(value = "auto", label = "Container name prefix for new containers", description = "New containers will be created with this prefix and an index.")
+    private static final String CONTAINER_PREFIX = "containerPrefix";
+    private String containerPrefix;
     @Property(value = "true", label = "Scale containers", description = "true = scale with containers, false = scale with profile assignments.")
     private static final String SCALE_CONTAINERS = "scaleContainers";
     private Boolean scaleContainers;
@@ -102,12 +105,15 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     @Property(value = "1", label = "Minimum number of containers", description = "Minimum number of applicable containers to perform autoscaling.")
     private static final String MINIMUM_CONTAINER_COUNT = "minimumContainerCount";
     private Integer minimumContainerCount;
-    @Property(value = "1", label = "Maximum deviation, n * average (n >= 0)", description = "If one container has more than average + (n * average) profiles assigned, the excess will be reassigned.")
+    @Property(value = "1.0", label = "Maximum deviation, n * average (n >= 0)", description = "If one container has more than average + (n * average) profiles assigned, the excess will be reassigned.")
     private static final String MAXIMUM_DEVIATION = "maximumDeviation";
-    private Integer maximumDeviation;
+    private Double maximumDeviation;
     @Property(value = "false", label = "Inherit requirements", description = "Profile dependencies will inherit their requirements from parent if their requirements are not set.")
     private static final String INHERIT_REQUIREMENTS = "inheritRequirements";
     private Boolean inheritRequirements;
+    @Property(value = "-1", label = "Desired average assignment count per container", description = "Desired average profile assignment count per container. Negative value equals no value.")
+    private static String AVERAGE_ASSIGNMENTS_PER_CONTAINER = "averageAssignmentsPerContainer";
+    private Integer averageAssignmentsPerContainer;
 
     private AtomicReference<Timer> timer = new AtomicReference<Timer>();
 
@@ -127,12 +133,14 @@ public final class AutoScaleController extends AbstractComponent implements Grou
         this.pollTime = Long.parseLong(properties.get(POLL_TIME));
         this.profilePattern = Pattern.compile(properties.get(PROFILE_PATTERN)).matcher("");
         this.containerPattern = Pattern.compile(properties.get(CONTAINER_PATTERN)).matcher("");
+        this.containerPrefix = properties.get(CONTAINER_PREFIX);
         this.scaleContainers = Boolean.parseBoolean(properties.get(SCALE_CONTAINERS));
         this.defaultMaximumInstancesPerHost = Integer.parseInt(properties.get(DEFAULT_MAXIMUM_INSTANCES_PER_HOST));
         this.autoscalerGroupId = properties.get(AUTOSCALER_GROUP_ID);
         this.minimumContainerCount = Integer.parseInt(properties.get(MINIMUM_CONTAINER_COUNT));
-        this.maximumDeviation = Integer.parseInt(properties.get(MAXIMUM_DEVIATION)) >= 0 ? Integer.parseInt(properties.get(MAXIMUM_DEVIATION)) : 1;
+        this.maximumDeviation = Double.parseDouble(properties.get(MAXIMUM_DEVIATION)) >= 0 ? Integer.parseInt(properties.get(MAXIMUM_DEVIATION)) : 1;
         this.inheritRequirements = Boolean.parseBoolean(properties.get(INHERIT_REQUIREMENTS));
+        this.averageAssignmentsPerContainer = Integer.parseInt(properties.get(AVERAGE_ASSIGNMENTS_PER_CONTAINER));
         CuratorFramework curator = this.curator.get();
         enableMasterZkCache(curator);
         group = new ZooKeeperGroup<AutoScalerNode>(curator, ZkPath.AUTO_SCALE_CLUSTER.getPath(autoscalerGroupId), AutoScalerNode.class);
@@ -227,7 +235,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
         autoScale();
     }
 
-    private void autoScale() {
+    private void autoScale2() {
         FabricService service = fabricService.get();
         FabricRequirements requirements = service.getRequirements();
         List<ProfileRequirements> profileRequirements = checkProfileRequirements(requirements.getProfileRequirements(), profilePattern, inheritRequirements);
@@ -257,6 +265,19 @@ public final class AutoScaleController extends AbstractComponent implements Grou
                 LOGGER.warn("No ZooKeeperMasterCache!");
             }
         }
+    }
+
+    private void autoScale() {
+        AutoScaledGroup cluster = new AutoScaledGroup(
+            fabricService.get(),
+            containerPattern,
+            profilePattern,
+            scaleContainers,
+            inheritRequirements,
+            maximumDeviation,
+            averageAssignmentsPerContainer,
+            containerPrefix);
+
     }
 
     private ContainerAutoScaler createAutoScaler(FabricRequirements requirements, ProfileRequirements profileRequirements) {

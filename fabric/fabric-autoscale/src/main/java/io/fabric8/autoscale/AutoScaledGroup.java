@@ -17,9 +17,9 @@ import io.fabric8.api.ProfileRequirements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AutoScaledCluster extends ProfileContainer {
+public class AutoScaledGroup extends ProfileContainer {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AutoScaledCluster.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AutoScaledGroup.class);
 
     private final Map<String, AutoScaledHost> hostMap = new HashMap<>();
     private final Map<String, AutoScaledContainer> containerMap = new HashMap<>();
@@ -33,7 +33,7 @@ public class AutoScaledCluster extends ProfileContainer {
     private final String containerPrefix;
     private final Integer maxInstancesPerContainer;
 
-    public AutoScaledCluster(
+    public AutoScaledGroup(
         FabricService service,
         Matcher containerPattern,
         Matcher profilePattern,
