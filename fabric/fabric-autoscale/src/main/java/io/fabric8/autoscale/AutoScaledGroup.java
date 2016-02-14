@@ -281,4 +281,11 @@ public class AutoScaledGroup extends ProfileContainer {
             return autoScaledContainer.getProfileCount() - t1.getProfileCount();
         }
     }
+
+    public void apply() {
+        // Apply changes to containers
+        for (AutoScaledContainer container : containerMap.values()) {
+            new Thread(container, "AutoScaler thread for container " + container.getId()).start();
+        }
+    }
 }

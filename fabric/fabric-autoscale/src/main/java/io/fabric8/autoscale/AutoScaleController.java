@@ -268,7 +268,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     }
 
     private void autoScale() {
-        AutoScaledGroup cluster = new AutoScaledGroup(
+        AutoScaledGroup autoScaledGroup = new AutoScaledGroup(
             fabricService.get(),
             containerPattern,
             profilePattern,
@@ -277,7 +277,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
             maximumDeviation,
             averageAssignmentsPerContainer,
             containerPrefix);
-
+        autoScaledGroup.apply();
     }
 
     private ContainerAutoScaler createAutoScaler(FabricRequirements requirements, ProfileRequirements profileRequirements) {

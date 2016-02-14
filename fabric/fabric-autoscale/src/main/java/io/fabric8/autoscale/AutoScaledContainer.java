@@ -109,7 +109,12 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     @Override
     public boolean hasProfile(String profileId) {
-        return hasProfile(container.getVersion().getProfile(profileId));
+        Profile profile = container.getVersion().getProfile(profileId);
+        if (profiles.containsKey(profile)) {
+            return profiles.get(profile);
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -119,7 +124,18 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     @Override
     public void run() {
-        final Set<Profile> currentProfiles = new HashSet<>(Arrays.asList(container.getProfiles()));
+        final Set<Profile> currentProfiles = new HashSet<>();
+        if (container != null) {
+            currentProfiles.addAll(Arrays.asList(container.getProfiles()));
+        }
+
+        // Clean up matching profiles that have no requirements
+        for (Profile profile : currentProfiles) {
+            if (profilePattern.reset(profile.getId()).matches() && !hasProfile(profile)) {
+                this.removeProfile(profile);
+            }
+        }
+
         final Set<Profile> resultProfiles = new HashSet<>(currentProfiles);
         for (Map.Entry<Profile, Boolean> entry : profiles.entrySet()) {
             final Profile profile = entry.getKey();
@@ -138,8 +154,14 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                     return profile.getId().compareToIgnoreCase(t1.getId());
                 }
             });
-            LOGGER.info("Setting profiles for container {}", container.getId());
-            container.setProfiles(sortedResult);
+            if (container != null) {
+                // Adjust existing container
+                LOGGER.info("Setting profiles for container {}", container.getId());
+                container.setProfiles(sortedResult);
+            } else {
+                // Create container
+                // TODO: 14.2.2016 create a new container and apply the profiles on it
+            }
         }
     }
 
