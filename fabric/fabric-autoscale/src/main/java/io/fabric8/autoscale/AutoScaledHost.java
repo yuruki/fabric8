@@ -2,28 +2,26 @@ package io.fabric8.autoscale;
 
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+
+import io.fabric8.api.ProfileRequirements;
 
 public class AutoScaledHost extends ProfileContainer {
 
-    private final String id;
-    private final Map<String, AutoScaledContainer> containerMap = new HashMap<>();
+    private final List<ProfileContainer> containerList = new LinkedList<>();
 
     public AutoScaledHost(String id) {
         this.id = id;
     }
 
-    public void addAutoScaledContainer(AutoScaledContainer container) {
-        containerMap.put(container.getId(), container);
+    public void addProfileContainer(ProfileContainer container) {
+        containerList.add(container);
     }
 
     @Override
     public boolean hasProfile(String profileId) {
-        for (AutoScaledContainer container : containerMap.values()) {
+        for (ProfileContainer container : containerList) {
             if (container.hasProfile(profileId)) {
                 return true;
             }
@@ -32,29 +30,34 @@ public class AutoScaledHost extends ProfileContainer {
     }
 
     @Override
-    public void addProfile(String profileId, int count) throws Exception {
-        List<AutoScaledContainer> autoScaledContainerList = new LinkedList<>(containerMap.values());
-        Collections.sort(autoScaledContainerList, new SortAutoScaledContainersByProfileCount());
-        for (AutoScaledContainer container : autoScaledContainerList) {
-            if (!container.hasProfile(profileId)) {
-                container.addProfile(profileId);
-                return;
+    public void addProfile(ProfileRequirements profile, int count) throws Exception {
+        for (int i = 0; i < count; i++) {
+            Collections.sort(containerList, new SortProfileContainers());
+            Exception exception = null;
+            for (ProfileContainer container : containerList) {
+                try {
+                    container.addProfile(profile);
+                    break;
+                } catch (Exception e) {
+                    exception = e;
+                }
+            }
+            if (exception != null) {
+                throw new Exception("Couldn't add profile " + profile.getProfile() + " to host " + id, exception);
             }
         }
-        throw new Exception("Couldn't add profile to host " + id);
     }
 
     @Override
-    public void removeProfile(String profileId, int count) {
-        List<AutoScaledContainer> autoScaledContainerList = new LinkedList<>(containerMap.values());
-        Collections.sort(autoScaledContainerList, new SortAutoScaledContainersByProfileCount());
-        Collections.reverse(autoScaledContainerList);
-        Iterator<AutoScaledContainer> iterator = autoScaledContainerList.iterator();
-        for (int i = count; i > 0 && iterator.hasNext();) {
-            AutoScaledContainer container = iterator.next();
-            if (container.hasProfile(profileId)) {
-                container.removeProfile(profileId);
-                i--;
+    public void removeProfile(String profile, int count) {
+        for (int i = 0; i < count; i++) {
+            Collections.sort(containerList, new SortProfileContainers());
+            Collections.reverse(containerList);
+            for (ProfileContainer container : containerList) {
+                if (container.hasProfile(profile)) {
+                    container.removeProfile(profile);
+                    break;
+                }
             }
         }
     }
@@ -62,8 +65,8 @@ public class AutoScaledHost extends ProfileContainer {
     @Override
     public int getProfileCount() {
         int count = 0;
-        for (AutoScaledContainer container : containerMap.values()) {
-            count = count + container.getProfileCount();
+        for (ProfileContainer container : containerList) {
+            count += container.getProfileCount();
         }
         return count;
     }
@@ -71,20 +74,20 @@ public class AutoScaledHost extends ProfileContainer {
     @Override
     public int getProfileCount(String profileId) {
         int count = 0;
-        for (AutoScaledContainer container : containerMap.values()) {
-            count = count + container.getProfileCount(profileId);
+        for (ProfileContainer container : containerList) {
+            count += container.getProfileCount(profileId);
         }
         return count;
     }
 
-    public void removeAutoScaledContainer(AutoScaledContainer container) {
-        containerMap.remove(container.getId());
+    public void removeProfileContainer(ProfileContainer container) {
+        containerList.remove(container);
     }
 
-    private class SortAutoScaledContainersByProfileCount implements Comparator<AutoScaledContainer> {
+    private class SortProfileContainers implements Comparator<ProfileContainer> {
         @Override
-        public int compare(AutoScaledContainer autoScaledContainer, AutoScaledContainer t1) {
-            return autoScaledContainer.getProfileCount() - t1.getProfileCount();
+        public int compare(ProfileContainer container, ProfileContainer t1) {
+            return container.getProfileCount() - t1.getProfileCount();
         }
     }
 }

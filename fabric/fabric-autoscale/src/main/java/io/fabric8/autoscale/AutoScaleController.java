@@ -138,12 +138,12 @@ public final class AutoScaleController extends AbstractComponent implements Grou
         this.defaultMaximumInstancesPerHost = Integer.parseInt(properties.get(DEFAULT_MAXIMUM_INSTANCES_PER_HOST));
         this.autoscalerGroupId = properties.get(AUTOSCALER_GROUP_ID);
         this.minimumContainerCount = Integer.parseInt(properties.get(MINIMUM_CONTAINER_COUNT));
-        this.maximumDeviation = Double.parseDouble(properties.get(MAXIMUM_DEVIATION)) >= 0 ? Integer.parseInt(properties.get(MAXIMUM_DEVIATION)) : 1;
+        this.maximumDeviation = Double.parseDouble(properties.get(MAXIMUM_DEVIATION)) >= 0 ? Double.parseDouble(properties.get(MAXIMUM_DEVIATION)) : 1;
         this.inheritRequirements = Boolean.parseBoolean(properties.get(INHERIT_REQUIREMENTS));
         this.averageAssignmentsPerContainer = Integer.parseInt(properties.get(AVERAGE_ASSIGNMENTS_PER_CONTAINER));
         CuratorFramework curator = this.curator.get();
         enableMasterZkCache(curator);
-        group = new ZooKeeperGroup<AutoScalerNode>(curator, ZkPath.AUTO_SCALE_CLUSTER.getPath(autoscalerGroupId), AutoScalerNode.class);
+        group = new ZooKeeperGroup<AutoScalerNode>(curator, ZkPath.AUTO_SCALE_CLUSTER.getPath() + "/" + autoscalerGroupId, AutoScalerNode.class);
         group.add(this);
         group.update(createState());
         group.start();
@@ -238,25 +238,21 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     private void autoScale2() {
         FabricService service = fabricService.get();
         FabricRequirements requirements = service.getRequirements();
-        List<ProfileRequirements> profileRequirements = checkProfileRequirements(requirements.getProfileRequirements(), profilePattern, inheritRequirements);
+        List<ProfileRequirements> profileRequirements = requirements.getProfileRequirements();
         if (!profileRequirements.isEmpty()) {
             AutoScaleStatus status = new AutoScaleStatus();
-            if (scaleContainers) { // Scale with containers
-                for (ProfileRequirements profileRequirement : profileRequirements) {
-                    ContainerAutoScaler autoScaler = createAutoScaler(requirements, profileRequirement);
-                    if (autoScaler != null) {
-                        autoScaleProfile(service, autoScaler, requirements, profileRequirement, status);
-                    } else {
-                        LOGGER.warn("No ContainerAutoScaler available for profile " + profileRequirement.getProfile());
-                    }
+            for (ProfileRequirements profileRequirement : profileRequirements) {
+                ContainerAutoScaler autoScaler = createAutoScaler(requirements, profileRequirement);
+                if (autoScaler != null) {
+                    autoScaleProfile(service, autoScaler, requirements, profileRequirement, status);
+                } else {
+                    LOGGER.warn("No ContainerAutoScaler available for profile " + profileRequirement.getProfile());
                 }
-            } else { // Scale with profile assignments
-                autoScaleProfileAssignments(service, requirements, profileRequirements);
             }
             if (zkMasterCache != null) {
                 try {
                     String json = RequirementsJson.toJSON(status);
-                    String zkPath = ZkPath.AUTO_SCALE_STATUS.getPath(autoscalerGroupId);
+                    String zkPath = ZkPath.AUTO_SCALE_STATUS.getPath() + "/" + autoscalerGroupId;
                     zkMasterCache.setStringData(zkPath, json, CreateMode.EPHEMERAL);
                 } catch (Exception e) {
                     LOGGER.warn("Failed to write autoscale status " + e, e);
@@ -268,16 +264,23 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     }
 
     private void autoScale() {
-        AutoScaledGroup autoScaledGroup = new AutoScaledGroup(
-            fabricService.get(),
-            containerPattern,
-            profilePattern,
-            scaleContainers,
-            inheritRequirements,
-            maximumDeviation,
-            averageAssignmentsPerContainer,
-            containerPrefix);
-        autoScaledGroup.apply();
+        try {
+            AutoScaledGroup autoScaledGroup = new AutoScaledGroup(
+                autoscalerGroupId,
+                fabricService.get(),
+                containerPattern,
+                profilePattern,
+                scaleContainers,
+                inheritRequirements,
+                maximumDeviation,
+                averageAssignmentsPerContainer,
+                containerPrefix,
+                minimumContainerCount,
+                defaultMaximumInstancesPerHost);
+            autoScaledGroup.apply();
+        } catch (Exception e) {
+            LOGGER.error("AutoScaledGroup {} failed", autoscalerGroupId, e);
+        }
     }
 
     private ContainerAutoScaler createAutoScaler(FabricRequirements requirements, ProfileRequirements profileRequirements) {
@@ -335,202 +338,6 @@ public final class AutoScaleController extends AbstractComponent implements Grou
             } catch (Exception e) {
                 LOGGER.error("Failed to auto-scale " + profile + ". Caught: " + e, e);
             }
-        }
-    }
-
-    // Return the preferred maximum profile assignment count for a single container
-    private static int getMaxAssignmentsPerContainer(int containerCount, int profileCount, double factor) {
-        int profilesPerContainerAverage = (int)Math.ceil(Math.abs(profileCount) / Math.abs(containerCount));
-        return profilesPerContainerAverage + (int)Math.round(Math.abs(factor) * profilesPerContainerAverage);
-    }
-
-    // Check the profile requirements against profile pattern and check the profile dependencies
-    private static List<ProfileRequirements> checkProfileRequirements(Collection<ProfileRequirements> profileRequirements, Matcher profilePattern, Boolean inheritRequirements) {
-        Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
-        for (ProfileRequirements p : profileRequirements) {
-            profileRequirementsMap.put(p.getProfile(), p);
-        }
-        Map<String, ProfileRequirements> checkedProfileRequirements = new HashMap<>();
-        for (ProfileRequirements p : profileRequirements) {
-            checkProfileRequirements(p, checkedProfileRequirements, profileRequirementsMap, profilePattern, inheritRequirements);
-        }
-        return new ArrayList<>(checkedProfileRequirements.values());
-    }
-
-    private static Map<String, ProfileRequirements> checkProfileRequirements(ProfileRequirements parent, Map<String, ProfileRequirements> checkedProfileRequirements, Map<String, ProfileRequirements> profileRequirementsMap, Matcher profilePattern, Boolean inheritRequirements) {
-        if (parent == null || !profilePattern.reset(parent.getProfile()).matches()) {
-            // At the end or profile doesn't match the profile pattern
-            return checkedProfileRequirements;
-        }
-        // Add this profile requirement to the result
-        checkedProfileRequirements.put(parent.getProfile(), parent);
-        if (parent.getDependentProfiles() == null) {
-            // Profile doesn't have dependencies
-            return checkedProfileRequirements;
-        }
-        if (!parent.hasMinimumInstances()) {
-            // Profile doesn't have instances, skip the dependencies
-            return checkedProfileRequirements;
-        }
-        // Check the profile dependencies
-        for (String profile : parent.getDependentProfiles()) {
-            if (!profilePattern.reset(profile).matches()) {
-                // Profile dependency doesn't match profile pattern
-                LOGGER.error("Profile dependency {} for profile {} doesn't match profile pattern.", profile, parent.getProfile());
-                continue;
-            }
-            ProfileRequirements dependency = profileRequirementsMap.get(profile);
-            if (inheritRequirements) {
-                if (dependency == null) {
-                    // Requirements missing, inherit them from the parent
-                    dependency = new ProfileRequirements(profile, parent.getMinimumInstances(), parent.getMaximumInstances());
-                } else if (!dependency.hasMinimumInstances()) {
-                    // No instances for the dependency, inherit them from the parent
-                    dependency.setMinimumInstances(parent.getMinimumInstances());
-                    if (dependency.getMaximumInstances() != null && dependency.getMaximumInstances() < dependency.getMinimumInstances()) {
-                        dependency.setMaximumInstances(parent.getMaximumInstances());
-                    }
-                }
-            } else {
-                if (dependency == null) {
-                    // Requirements missing.
-                    LOGGER.error("Profile dependency {} for profile {} is missing requirements.", profile, parent.getProfile());
-                    continue;
-                } else if (!dependency.hasMinimumInstances()) {
-                    // No instances for the dependency.
-                    LOGGER.error("Profile dependency {} for profile {} has no instances.", profile, parent.getProfile());
-                    continue;
-                }
-            }
-            checkProfileRequirements(dependency, checkedProfileRequirements, profileRequirementsMap, profilePattern, inheritRequirements);
-        }
-        return checkedProfileRequirements;
-    }
-
-    private void autoScaleProfileAssignments(FabricService service, FabricRequirements requirements, List<ProfileRequirements> profileRequirements) {
-        final Map<Container, AutoScaledContainer> containerJobMap = new HashMap<>();
-        Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
-        for (ProfileRequirements p : profileRequirements) {
-            profileRequirementsMap.put(p.getProfile(), p);
-        }
-        try {
-            // Collect all applicable containers
-            for (Container container : Arrays.asList(service.getContainers())) {
-                if (containerPattern.reset(container.getId()).matches() && container.isAlive()) {
-                    containerJobMap.put(container, new AutoScaledContainer(container));
-                }
-            }
-
-            // Exit if we don't have enough containers
-            if (containerJobMap.size() < minimumContainerCount) {
-                LOGGER.error("{} containers required for autoscaling, {} available.", minimumContainerCount, containerJobMap.size());
-                return;
-            }
-
-            // Calculate max profile assignments per container
-            final int maxProfilesPerContainer = getMaxAssignmentsPerContainer(containerJobMap.size(), profileRequirements.size(), maximumDeviation);
-
-            // Collect current profile assignments
-            for (ProfileRequirements profileRequirement : profileRequirements) {
-                final String profileId = profileRequirement.getProfile();
-                for (Container container : Containers.aliveOrPendingContainersForProfile(profileId, service)) {
-                    if (containerJobMap.containsKey(container)) {
-                        containerJobMap.get(container).addProfile(profileId);
-                    }
-                }
-            }
-
-            // Check against max profile assignments per container
-            for (AutoScaledContainer autoScaledContainer : containerJobMap.values()) {
-                autoScaledContainer.removeProfiles(autoScaledContainer.getProfileCount() - maxProfilesPerContainer);
-            }
-
-            for (ProfileRequirements profileRequirement : profileRequirements) {
-                final String profileId = profileRequirement.getProfile();
-                final Integer minimumInstances = profileRequirement.getMinimumInstances();
-                final Integer maximumInstances = profileRequirement.getMaximumInstances();
-                final Integer maximumInstancesPerHost = (profileRequirement.getMaximumInstancesPerHost() != null) ? profileRequirement.getMaximumInstancesPerHost() : defaultMaximumInstancesPerHost;
-
-                // Get containerJobs for this profile
-                List<AutoScaledContainer> autoScaledContainerJobsForProfile = getContainerJobsForProfile(containerJobMap.values(), profileId);
-
-                // Put container with least profiles first
-                Collections.sort(autoScaledContainerJobsForProfile, new SortContainerJobsByProfileCount());
-
-                // Check against max profile instances per host
-                Map<String, Integer> instancesPerHosts = new HashMap<>();
-                Iterator<AutoScaledContainer> iterator = autoScaledContainerJobsForProfile.iterator();
-                while (iterator.hasNext()) {
-                    AutoScaledContainer autoScaledContainer = iterator.next();
-                    int instancesPerHost = 0;
-                    if (instancesPerHosts.get(autoScaledContainer.getHostId()) != null) {
-                        instancesPerHost = instancesPerHosts.get(autoScaledContainer.getHostId());
-                    }
-                    if (instancesPerHost >= maximumInstancesPerHost) {
-                        autoScaledContainer.removeProfile(profileId); // Remove profile instances that violate maximumInstancesPerHost
-                        iterator.remove(); // Remove containerJob for this profile
-                    } else {
-                        instancesPerHosts.put(autoScaledContainer.getHostId(), instancesPerHost + 1);
-                    }
-                }
-
-                // Check against max instances
-                if (maximumInstances != null) {
-                    int delta = autoScaledContainerJobsForProfile.size() - maximumInstances;
-                    if (delta > 0) {
-                        // Put container with most profiles first
-                        Collections.sort(autoScaledContainerJobsForProfile, Collections.reverseOrder(new SortContainerJobsByProfileCount()));
-                        iterator = autoScaledContainerJobsForProfile.iterator();
-                        for (int i = 0; iterator.hasNext() && i < delta; i++) {
-                            AutoScaledContainer autoScaledContainer = iterator.next();
-                            autoScaledContainer.removeProfile(profileId); // Remove profile instances that violate maximumInstances
-                            iterator.remove(); // Remove containerJob for this profile
-                            instancesPerHosts.put(autoScaledContainer.getHostId(), instancesPerHosts.get(autoScaledContainer.getHostId()) - 1);
-                        }
-                    }
-                }
-
-                // Check against min instances
-                if (minimumInstances != null) {
-                    int delta = minimumInstances - autoScaledContainerJobsForProfile.size();
-                    if (delta > 0) {
-                        List<AutoScaledContainer> applicableContainers = new ArrayList<>(containerJobMap.values());
-                        // Container with least profiles first
-                        Collections.sort(applicableContainers, new SortContainerJobsByProfileCount());
-                        for (AutoScaledContainer autoScaledContainer : applicableContainers) {
-                            int instancesPerHost = 0;
-                            if (instancesPerHosts.get(autoScaledContainer.getHostId()) != null) {
-                                instancesPerHost = instancesPerHosts.get(autoScaledContainer.getHostId());
-                            }
-                            if (instancesPerHost < maximumInstancesPerHost) { // Watch for maximumInstancesPerHost
-                                autoScaledContainer.addProfile(profileId); // Add missing profile instances
-                                autoScaledContainerJobsForProfile.add(autoScaledContainer); // Add ContainerJob for this profile
-                                instancesPerHosts.put(autoScaledContainer.getHostId(), instancesPerHost + 1);
-                                delta--;
-                            }
-                        }
-                        if (delta > 0) {
-                            LOGGER.error("Failed to assign the requested number of instances for profile: {}. {} assignments pending.", profileId, delta);
-                        }
-                    }
-                }
-            }
-
-            // Clean up matching profiles that have no requirements
-            for (AutoScaledContainer autoScaledContainer : containerJobMap.values()) {
-                for (Profile profile : Arrays.asList(autoScaledContainer.getContainer().getProfiles())) {
-                    if (profilePattern.reset(profile.getId()).matches() && !profileRequirementsMap.containsKey(profile.getId())) {
-                        autoScaledContainer.removeProfile(profile);
-                    }
-                }
-            }
-
-            // Apply changes to containers
-            for (AutoScaledContainer autoScaledContainer : containerJobMap.values()) {
-                new Thread(autoScaledContainer, "ContainerJob for container " + autoScaledContainer.getId()).start();
-            }
-        } catch (Exception e) {
-            LOGGER.error("Failed to auto-scale with profiles. Caught: " + e, e);
         }
     }
 
