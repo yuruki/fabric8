@@ -1,7 +1,6 @@
 package io.fabric8.autoscale;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -25,7 +24,7 @@ public class AutoScaledGroup extends ProfileContainer {
     private final AutoScaledGroupOptions options;
     private final Long maxAssignmentsPerContainer;
 
-    public AutoScaledGroup(String groupId, AutoScaledGroupOptions options, Container[] containers, List<ProfileRequirements> profileRequirements) throws Exception {
+    public AutoScaledGroup(final String groupId, final AutoScaledGroupOptions options, final Container[] containers, final ProfileRequirements[] profileRequirements) throws Exception {
         this.id = groupId;
         this.options = options;
 
@@ -161,7 +160,7 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     // Check the profile requirements against profile pattern and check the profile dependencies
-    private static List<ProfileRequirements> checkProfileRequirements(final Collection<ProfileRequirements> profileRequirements, final Matcher profilePattern, final Boolean inheritRequirements) {
+    private static List<ProfileRequirements> checkProfileRequirements(final ProfileRequirements[] profileRequirements, final Matcher profilePattern, final Boolean inheritRequirements) {
         Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
         for (ProfileRequirements p : profileRequirements) {
             profileRequirementsMap.put(p.getProfile(), p);
