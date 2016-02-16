@@ -1,7 +1,6 @@
 package io.fabric8.autoscale;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -12,7 +11,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 
 import io.fabric8.api.Container;
-import io.fabric8.api.FabricService;
 import io.fabric8.api.ProfileRequirements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +35,8 @@ public class AutoScaledGroup extends ProfileContainer {
 
     public AutoScaledGroup(
         String groupId,
-        FabricService service,
+        Container[] containers,
+        List<ProfileRequirements> profileRequirements,
         Matcher containerPattern,
         Matcher profilePattern,
         Boolean scaleContainers,
@@ -59,7 +58,7 @@ public class AutoScaledGroup extends ProfileContainer {
         this.defaultMaximumInstancesPerHost = defaultMaximumInstancesPerHost;
 
         // Collect all applicable profile requirements
-        for (ProfileRequirements profile : checkProfileRequirements(service.getRequirements().getProfileRequirements(), profilePattern, inheritRequirements)) {
+        for (ProfileRequirements profile : checkProfileRequirements(profileRequirements, profilePattern, inheritRequirements)) {
             if (profile.getMaximumInstancesPerHost() == null) {
                 profile.setMaximumInstancesPerHost(defaultMaximumInstancesPerHost);
             }
@@ -68,7 +67,7 @@ public class AutoScaledGroup extends ProfileContainer {
 
         if (scaleContainers) {
             // Collect all matching containers
-            for (Container container : Arrays.asList(service.getContainers())) {
+            for (Container container : containers) {
                 if (containerPattern.reset(container.getId()).matches()) {
                     AutoScaledContainer autoScaledContainer = AutoScaledContainer.newAutoScaledContainer(this, container);
                     containerList.add(autoScaledContainer);
@@ -79,7 +78,7 @@ public class AutoScaledGroup extends ProfileContainer {
             adjustContainerCount(desiredContainerCount - containerList.size());
         } else {
             // Collect all matching containers that are alive
-            for (Container container : Arrays.asList(service.getContainers())) {
+            for (Container container : containers) {
                 if (containerPattern.reset(container.getId()).matches() && container.isAlive()) {
                     AutoScaledContainer autoScaledContainer = AutoScaledContainer.newAutoScaledContainer(this, container);
                     containerList.add(autoScaledContainer);
@@ -190,7 +189,7 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     // Check the profile requirements against profile pattern and check the profile dependencies
-    private static List<ProfileRequirements> checkProfileRequirements(Collection<ProfileRequirements> profileRequirements, Matcher profilePattern, Boolean inheritRequirements) {
+    private static List<ProfileRequirements> checkProfileRequirements(final Collection<ProfileRequirements> profileRequirements, final Matcher profilePattern, final Boolean inheritRequirements) {
         Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
         for (ProfileRequirements p : profileRequirements) {
             profileRequirementsMap.put(p.getProfile(), p);
@@ -202,7 +201,7 @@ public class AutoScaledGroup extends ProfileContainer {
         return new ArrayList<>(checkedProfileRequirements.values());
     }
 
-    private static Map<String, ProfileRequirements> checkProfileRequirements(ProfileRequirements parent, Map<String, ProfileRequirements> checkedProfileRequirements, Map<String, ProfileRequirements> profileRequirementsMap, Matcher profilePattern, Boolean inheritRequirements) {
+    private static Map<String, ProfileRequirements> checkProfileRequirements(final ProfileRequirements parent, final Map<String, ProfileRequirements> checkedProfileRequirements, final Map<String, ProfileRequirements> profileRequirementsMap, final Matcher profilePattern, final Boolean inheritRequirements) {
         if (parent == null || !profilePattern.reset(parent.getProfile()).matches()) {
             // At the end or profile doesn't match the profile pattern
             return checkedProfileRequirements;

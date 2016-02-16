@@ -265,9 +265,14 @@ public final class AutoScaleController extends AbstractComponent implements Grou
 
     private void autoScale() {
         try {
+            FabricService service = fabricService.getOptional();
+            if (service == null) {
+                throw new Exception("FabricService not available");
+            }
             AutoScaledGroup autoScaledGroup = new AutoScaledGroup(
                 autoscalerGroupId,
-                fabricService.get(),
+                service.getContainers(),
+                service.getRequirements().getProfileRequirements(),
                 containerPattern,
                 profilePattern,
                 scaleContainers,
