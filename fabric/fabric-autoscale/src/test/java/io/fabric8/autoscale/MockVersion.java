@@ -27,6 +27,14 @@ public class MockVersion implements Version {
         return null;
     }
 
+    public void addProfile(Profile profile) {
+        profileMap.put(profile.getId(), profile);
+    }
+
+    public void removeProfile(String profileId) {
+        profileMap.remove(profileId);
+    }
+
     @Override
     public List<String> getProfileIds() {
         return new ArrayList<>(profileMap.keySet());

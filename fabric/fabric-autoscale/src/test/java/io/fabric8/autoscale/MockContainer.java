@@ -23,6 +23,7 @@ public class MockContainer implements Container {
     private Boolean alive;
     private String ipAddress;
     private String versionId;
+    private Version version;
 
     public MockContainer(String id, Boolean alive, String ipAddress) {
         this.id = id;
@@ -127,12 +128,12 @@ public class MockContainer implements Container {
 
     @Override
     public Version getVersion() {
-        return null;
+        return version;
     }
 
     @Override
     public void setVersion(Version version) {
-
+        this.version = version;
     }
 
     @Override
