@@ -22,70 +22,42 @@ public class AutoScaledGroup extends ProfileContainer {
     private final Map<String, AutoScaledHost> hostMap = new HashMap<>();
     private final List<AutoScaledContainer> containerList = new LinkedList<>();
     private final Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
-    private final Matcher containerPattern;
-    private final Matcher profilePattern;
-    private final Boolean scaleContainers;
-    private final Boolean inheritRequirements;
-    private final Double maxDeviation;
-    private final Integer averageAssignmentsPerContainer;
-    private final String containerPrefix;
+    private final AutoScaledGroupOptions options;
     private final Long maxAssignmentsPerContainer;
-    private final Integer minContainerCount;
-    private final Integer defaultMaximumInstancesPerHost;
 
-    public AutoScaledGroup(
-        String groupId,
-        Container[] containers,
-        List<ProfileRequirements> profileRequirements,
-        Matcher containerPattern,
-        Matcher profilePattern,
-        Boolean scaleContainers,
-        Boolean inheritRequirements,
-        Double maxDeviation,
-        Integer averageAssignmentsPerContainer,
-        String containerPrefix,
-        Integer minContainerCount,
-        Integer defaultMaximumInstancesPerHost) throws Exception {
+    public AutoScaledGroup(String groupId, AutoScaledGroupOptions options, Container[] containers, List<ProfileRequirements> profileRequirements) throws Exception {
         this.id = groupId;
-        this.containerPattern = containerPattern;
-        this.profilePattern = profilePattern;
-        this.scaleContainers = scaleContainers;
-        this.inheritRequirements = inheritRequirements;
-        this.maxDeviation = maxDeviation;
-        this.averageAssignmentsPerContainer = averageAssignmentsPerContainer;
-        this.containerPrefix = containerPrefix;
-        this.minContainerCount = minContainerCount;
-        this.defaultMaximumInstancesPerHost = defaultMaximumInstancesPerHost;
+        this.options = options;
 
         // Collect all applicable profile requirements
-        for (ProfileRequirements profile : checkProfileRequirements(profileRequirements, profilePattern, inheritRequirements)) {
+        for (ProfileRequirements profile : checkProfileRequirements(profileRequirements, options.getProfilePattern(), options.getInheritRequirements())) {
             if (profile.getMaximumInstancesPerHost() == null) {
-                profile.setMaximumInstancesPerHost(defaultMaximumInstancesPerHost);
+                profile.setMaximumInstancesPerHost(options.getDefaultMaximumInstancesPerHost());
             }
             profileRequirementsMap.put(profile.getProfile(), profile);
         }
 
-        if (scaleContainers) {
+        if (options.getScaleContainers()) {
             // Collect all matching containers
             for (Container container : containers) {
-                if (containerPattern.reset(container.getId()).matches()) {
+                if (options.getContainerPattern().reset(container.getId()).matches()) {
                     AutoScaledContainer autoScaledContainer = AutoScaledContainer.newAutoScaledContainer(this, container);
                     containerList.add(autoScaledContainer);
                 }
             }
             // Scale containers
-            int desiredContainerCount = (int)Math.ceil(profileRequirementsMap.size() / averageAssignmentsPerContainer);
+            int desiredContainerCount = (int)Math.ceil(profileRequirementsMap.size() / options.getAverageAssignmentsPerContainer());
             adjustContainerCount(desiredContainerCount - containerList.size());
         } else {
             // Collect all matching containers that are alive
             for (Container container : containers) {
-                if (containerPattern.reset(container.getId()).matches() && container.isAlive()) {
+                if (options.getContainerPattern().reset(container.getId()).matches() && container.isAlive()) {
                     AutoScaledContainer autoScaledContainer = AutoScaledContainer.newAutoScaledContainer(this, container);
                     containerList.add(autoScaledContainer);
                 }
             }
-            if (containerList.size() < minContainerCount) {
-                throw new Exception("Not enough containers (" + containerList.size() + "), " + minContainerCount + " required");
+            if (containerList.size() < options.getMinContainerCount()) {
+                throw new Exception("Not enough containers (" + containerList.size() + "), " + options.getMinContainerCount() + " required");
             }
         }
 
@@ -118,14 +90,14 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     private String createContainerId() throws Exception {
-        if (containerPattern.reset(containerPrefix).matches()) {
+        if (options.getContainerPattern().reset(options.getContainerPrefix()).matches()) {
             List<String> containerNames = new ArrayList<>();
             for (AutoScaledContainer container : containerList) {
                 containerNames.add(container.getId());
             }
             for (int i = 0; i <= containerList.size(); i++) {
-                if (!containerNames.contains(containerPrefix + (i + 1))) {
-                    return containerPrefix + (i + 1);
+                if (!containerNames.contains(options.getContainerPrefix() + (i + 1))) {
+                    return options.getContainerPrefix() + (i + 1);
                 }
             }
         } else {
@@ -253,13 +225,13 @@ public class AutoScaledGroup extends ProfileContainer {
 
     // Return the preferred maximum profile assignment count for a single container
     private long calculateMaxAssignmentsPerContainer() {
-        long average = averageAssignmentsPerContainer;
-        if (averageAssignmentsPerContainer < 0 && !containerList.isEmpty()) {
+        long average = options.getAverageAssignmentsPerContainer();
+        if (options.getAverageAssignmentsPerContainer() < 0 && !containerList.isEmpty()) {
             average = (profileRequirementsMap.size() + containerList.size() - 1) / containerList.size(); // Ceiling of average
-        } else if (averageAssignmentsPerContainer < 0) {
+        } else if (options.getAverageAssignmentsPerContainer() < 0) {
             average = 0;
         }
-        return average + (int)Math.round(Math.abs(maxDeviation) * average);
+        return average + (int)Math.round(Math.abs(options.getMaxDeviation()) * average);
     }
 
     @Override
@@ -324,7 +296,7 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     public Matcher getProfilePattern() {
-        return profilePattern;
+        return options.getProfilePattern();
     }
 
     public Map<String, AutoScaledHost> getHostMap() {

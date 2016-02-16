@@ -2,6 +2,8 @@ package io.fabric8.autoscale;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.fabric8.api.Container;
 import io.fabric8.api.ProfileRequirements;
@@ -9,6 +11,9 @@ import io.fabric8.api.ProfileRequirements;
 import static org.junit.Assert.*;
 
 public class ProfileContainerTest {
+
+    private List<ProfileContainer> profileContainers = new ArrayList<>();
+    private AutoScaledGroup autoScaledGroup;
 
     @org.junit.Before
     public void setUp() throws Exception {
@@ -46,20 +51,20 @@ public class ProfileContainerTest {
         profileRequirements.add(new ProfileRequirements(profile3.getId()).minimumInstances(1).dependentProfiles(profile4.getId())); // Minimum instances with dependency
         profileRequirements.add(new ProfileRequirements(profile5.getId()).minimumInstances(5).maximumInstancesPerHost(3));
 
+        // Set up parameters
+        AutoScaledGroupOptions options = new AutoScaledGroupOptions()
+            .containerPattern(Pattern.compile("^auto.*$").matcher(""))
+            .profilePattern(Pattern.compile("^.*-auto$").matcher(""))
+            .scaleContainers(false)
+            .inheritRequirements(true)
+            .maxDeviation(1.0)
+            .averageAssignmentsPerContainer(-1)
+            .containerPrefix("auto")
+            .minContainerCount(2)
+            .defaultMaximumInstancesPerHost(1);
+
         // Set up testables
-        AutoScaledGroup autoScaledGroup = new AutoScaledGroup(
-            "test",
-            containerList.toArray(new Container[containerList.size()]),
-            profileRequirements,
-            containerPattern,
-            profilePattern,
-            scaleContainers,
-            inheritRequirements,
-            maxDeviation,
-            averageAssignmentsPerContainer,
-            containerPrefix,
-            minContainerCount,
-            defaultMaximumInstancesPerHost);
+        autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements);
     }
 
     @org.junit.After
