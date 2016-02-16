@@ -2,7 +2,6 @@ package io.fabric8.autoscale;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.fabric8.api.Container;
@@ -12,17 +11,25 @@ import static org.junit.Assert.*;
 
 public class ProfileContainerTest {
 
-    private List<ProfileContainer> profileContainers = new ArrayList<>();
+    private List<ProfileContainer> profileContainers;
     private AutoScaledGroup autoScaledGroup;
+    private AutoScaledHost autoScaledHost;
+    private AutoScaledContainer autoScaledContainer;
+    private MockProfile profile1;
+    private MockProfile profile2;
+    private MockProfile profile3;
+    private MockProfile profile4;
+    private MockProfile profile5;
+    private List<ProfileRequirements> profileRequirements;
 
     @org.junit.Before
     public void setUp() throws Exception {
         // Set up profiles
-        MockProfile profile1 = new MockProfile("first-auto");
-        MockProfile profile2 = new MockProfile("second-auto");
-        MockProfile profile3 = new MockProfile("third-auto");
-        MockProfile profile4 = new MockProfile("fourth-auto");
-        MockProfile profile5 = new MockProfile("fifth-auto");
+        profile1 = new MockProfile("first-auto");
+        profile2 = new MockProfile("second-auto");
+        profile3 = new MockProfile("third-auto");
+        profile4 = new MockProfile("fourth-auto");
+        profile5 = new MockProfile("fifth-auto");
 
         // Set up versions
         MockVersion version = new MockVersion("1.0");
@@ -33,19 +40,13 @@ public class ProfileContainerTest {
         version.addProfile(profile5);
 
         // Set up containers
-        MockContainer container1 = new MockContainer("auto1", true, "1");
-        container1.setVersion(version);
-        MockContainer container2 = new MockContainer("auto2", true, "1");
-        container2.setVersion(version);
-        MockContainer container3 = new MockContainer("auto3", true, "1");
-        container3.setVersion(version);
+        MockContainer container = new MockContainer("auto1", true, "1");
+        container.setVersion(version);
         List<Container> containerList = new ArrayList<>();
-        containerList.add(container1);
-        containerList.add(container2);
-        containerList.add(container3);
+        containerList.add(container);
 
         // Set up profile requirements
-        List<ProfileRequirements> profileRequirements = new ArrayList<>();
+        profileRequirements = new ArrayList<>();
         profileRequirements.add(new ProfileRequirements(profile1.getId())); // No requirements
         profileRequirements.add(new ProfileRequirements(profile2.getId()).minimumInstances(1)); // Minimum instances
         profileRequirements.add(new ProfileRequirements(profile3.getId()).minimumInstances(1).dependentProfiles(profile4.getId())); // Minimum instances with dependency
@@ -57,44 +58,62 @@ public class ProfileContainerTest {
             .profilePattern(Pattern.compile("^.*-auto$").matcher(""))
             .scaleContainers(false)
             .inheritRequirements(true)
-            .maxDeviation(1.0)
-            .averageAssignmentsPerContainer(-1)
             .containerPrefix("auto")
-            .minContainerCount(2)
+            .minContainerCount(1)
             .defaultMaximumInstancesPerHost(1);
 
         // Set up testables
         autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements);
-    }
-
-    @org.junit.After
-    public void tearDown() throws Exception {
-
+        autoScaledGroup.apply();
+        autoScaledHost = autoScaledGroup.getHosts().get(0);
+        autoScaledContainer = autoScaledGroup.getContainers().get(0);
+        profileContainers = new ArrayList<>();
+        profileContainers.add(autoScaledContainer);
+        profileContainers.add(autoScaledHost);
+        profileContainers.add(autoScaledGroup);
     }
 
     @org.junit.Test
     public void testHasProfile() throws Exception {
-
+        for (ProfileContainer container : profileContainers) {
+            assertTrue(container.hasProfile(profile2.getId()));
+        }
     }
 
     @org.junit.Test
     public void testHasProfile1() throws Exception {
-
+        for (ProfileContainer container : profileContainers) {
+            assertTrue(container.hasProfile(profileRequirements.get(1)));
+        }
     }
 
     @org.junit.Test
     public void testHasProfile2() throws Exception {
-
+        for (ProfileContainer container : profileContainers) {
+            assertTrue(container.hasProfile(profile2));
+        }
     }
 
     @org.junit.Test
     public void testAddProfile() throws Exception {
-
+        for (ProfileContainer container : profileContainers) {
+            assertFalse(container.hasProfile(profile1));
+        }
+        profileContainers.get(0).addProfile(new ProfileRequirements(profile1.getId(), 1));
+        for (ProfileContainer container : profileContainers) {
+            assertTrue(container.hasProfile(profile1));
+        }
     }
 
     @org.junit.Test
     public void testAddProfile1() throws Exception {
-
+        for (ProfileContainer container : profileContainers) {
+            assertFalse(container.hasProfile(profile1));
+        }
+        profileContainers.get(0).addProfile(new ProfileRequirements(profile1.getId(), 1), 2);
+        for (ProfileContainer container : profileContainers) {
+            assertEquals(2, container.getProfileCount(profile1));
+        }
     }
 
     @org.junit.Test

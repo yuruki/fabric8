@@ -269,16 +269,16 @@ public final class AutoScaleController extends AbstractComponent implements Grou
             if (service == null) {
                 throw new Exception("FabricService not available");
             }
-            AutoScaledGroupOptions options = new AutoScaledGroupOptions()
-                .containerPattern(containerPattern)
-                .profilePattern(profilePattern)
-                .scaleContainers(scaleContainers)
-                .inheritRequirements(inheritRequirements)
-                .maxDeviation(maximumDeviation)
-                .averageAssignmentsPerContainer(averageAssignmentsPerContainer)
-                .containerPrefix(containerPrefix)
-                .minContainerCount(minimumContainerCount)
-                .defaultMaximumInstancesPerHost(defaultMaximumInstancesPerHost);
+            AutoScaledGroupOptions options = new AutoScaledGroupOptions(
+                containerPattern,
+                profilePattern,
+                scaleContainers,
+                inheritRequirements,
+                maximumDeviation,
+                averageAssignmentsPerContainer,
+                containerPrefix,
+                minimumContainerCount,
+                defaultMaximumInstancesPerHost);
             AutoScaledGroup autoScaledGroup = new AutoScaledGroup(autoscalerGroupId, options, service.getContainers(), service.getRequirements().getProfileRequirements());
             autoScaledGroup.apply();
         } catch (Exception e) {

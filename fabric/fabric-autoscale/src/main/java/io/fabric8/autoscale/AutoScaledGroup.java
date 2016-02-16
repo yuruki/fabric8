@@ -320,4 +320,12 @@ public class AutoScaledGroup extends ProfileContainer {
             new Thread(container, "AutoScaler thread for container " + container.getId()).start();
         }
     }
+
+    public List<AutoScaledContainer> getContainers() {
+        return containerList;
+    }
+
+    public List<AutoScaledHost> getHosts() {
+        return new ArrayList<>(hostMap.values());
+    }
 }

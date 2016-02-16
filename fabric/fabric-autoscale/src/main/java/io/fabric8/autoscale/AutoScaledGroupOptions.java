@@ -24,6 +24,8 @@ public class AutoScaledGroupOptions {
     private Integer defaultMaximumInstancesPerHost = 1;
     public static final String DEFAULT_MAX_INSTANCES_PER_HOST_DEFAULT = "1";
 
+    public AutoScaledGroupOptions() {}
+
     public AutoScaledGroupOptions(
         Matcher containerPattern,
         Matcher profilePattern,
