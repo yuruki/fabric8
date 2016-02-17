@@ -49,6 +49,9 @@ public class AutoScaledGroup extends ProfileContainer {
                 }
             }
             // Scale containers
+            if (options.getAverageAssignmentsPerContainer() < 1) {
+                throw new Exception("averageAssignmentsPerContainer < 1");
+            }
             int desiredContainerCount = (int)Math.ceil(profileRequirementsMap.size() / options.getAverageAssignmentsPerContainer());
             adjustContainerCount(desiredContainerCount - containerList.size());
         } else {
