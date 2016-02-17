@@ -3,6 +3,7 @@ package io.fabric8.autoscale;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -28,26 +29,32 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     private final Map<String, Boolean> profiles = new HashMap<>();
     private final Matcher profilePattern;
     private final AutoScaledGroup group;
+    private final Boolean newHost;
 
     private AutoScaledHost host;
     private Boolean remove = false;
 
-    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group) {
+    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group, boolean newHost) {
         this.container = container;
         this.id = id;
         this.profilePattern = profilePattern;
         this.hostMap = hostMap;
         this.group = group;
+        this.newHost = newHost;
 
-        String hostId = UUID.randomUUID().toString();
         if (container != null) {
             // Existing container
-            hostId = container.getIp();
+            setHost(container.getIp(), getRootContainer(container));
+        } else if (newHost) {
+            // New container on a new host
+            setHost(UUID.randomUUID().toString()); // Any unique value goes
         } else {
-            // New container
-            // TODO: 14.2.2016 get host ID for new container if possible
+            // New container on an existing host
+            // TODO: 17.2.2016 only if container provider is child otherwise throw ex, null checks
+            List<Container> rootContainers = group.getRootContainers();
+            Collections.sort(rootContainers, new SortRootContainers());
+            setHost(rootContainers.get(0));
         }
-        setHost(hostId);
 
         // Collect current profiles
         if (container != null) {
@@ -63,12 +70,20 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         }
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) {
-        return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap(), group);
+    private Container getRootContainer(Container container) {
+        if (container.isRoot()) {
+            return container;
+        } else {
+            return container.getParent();
+        }
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id) {
-        return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap(), group);
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) {
+        return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap(), group, false);
+    }
+
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id, boolean newHost) {
+        return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap(), group, newHost);
     }
 
     private void setHost(AutoScaledHost host) {
@@ -77,12 +92,20 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         host.addProfileContainer(this);
     }
 
-    private void setHost(String hostId) {
+    private void setHost(String hostId, Container rootContainer) {
         if (hostMap.containsKey(hostId)) {
             setHost(hostMap.get(hostId));
         } else {
-            setHost(new AutoScaledHost(hostId));
+            setHost(new AutoScaledHost(hostId, rootContainer));
         }
+    }
+
+    private void setHost(String hostId) {
+        setHost(hostId, null);
+    }
+
+    private void setHost(Container rootContainer) {
+        setHost(rootContainer.getIp(), rootContainer);
     }
 
     @Override
@@ -197,10 +220,20 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                 // Adjust existing container
                 LOGGER.info("Setting profiles for container {}", container.getId());
                 container.setProfiles(profiles.toArray(new Profile[profiles.size()]));
+                if (!container.isAlive()) {
+                    container.start(true);
+                }
             } else {
                 // Create container
                 // TODO: 14.2.2016 create a new container and apply the profiles on it
             }
+        }
+    }
+
+    private class SortRootContainers implements Comparator<Container> {
+        @Override
+        public int compare(Container container, Container t1) {
+            return container.getChildren().length - t1.getChildren().length;
         }
     }
 }

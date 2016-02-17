@@ -5,14 +5,17 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 
+import io.fabric8.api.Container;
 import io.fabric8.api.ProfileRequirements;
 
 public class AutoScaledHost extends ProfileContainer {
 
     private final List<ProfileContainer> containerList = new LinkedList<>();
+    private final Container rootContainer;
 
-    public AutoScaledHost(String id) {
+    public AutoScaledHost(String id, Container rootContainer) {
         this.id = id;
+        this.rootContainer = rootContainer;
     }
 
     public void addProfileContainer(ProfileContainer container) {
