@@ -1,9 +1,13 @@
 package io.fabric8.autoscale;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -21,7 +25,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     private final Container container;
     private final Map<String, AutoScaledHost> hostMap;
-    private final Map<Profile, Boolean> profiles = new HashMap<>();
+    private final Map<String, Boolean> profiles = new HashMap<>();
     private final Matcher profilePattern;
     private final AutoScaledGroup group;
 
@@ -50,7 +54,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
             for (Profile profile : Arrays.asList(container.getProfiles())) {
                 if (profilePattern.reset(profile.getId()).matches()) {
                     try {
-                        profiles.put(profile, true);
+                        profiles.put(profile.getId(), true);
                     } catch (Exception e) {
                         LOGGER.error("Couldn't add profile {} to container {}", profile.getId(), id);
                     }
@@ -94,21 +98,20 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     @Override
     public void removeProfile(String profile, int count) {
-        profiles.put(container.getVersion().getProfile(profile), false); // Ignore count
+        profiles.put(profile, false); // Ignore count
     }
 
     public void removeProfiles(long count) {
-        Profile[] ps = profiles.keySet().toArray(new Profile[profiles.keySet().size()]);
-        for (int i = 0; i < count; i++) {
-            removeProfile(ps[i]);
+        Iterator<String> iterator = profiles.keySet().iterator();
+        for (int i = 0; i < count && iterator.hasNext(); i++) {
+            iterator.remove();
         }
     }
 
     @Override
     public boolean hasProfile(String profileId) {
-        Profile profile = container.getVersion().getProfile(profileId);
-        if (profiles.containsKey(profile)) {
-            return profiles.get(profile);
+        if (profiles.containsKey(profileId)) {
+            return profiles.get(profileId);
         } else {
             return false;
         }
@@ -124,14 +127,14 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
             throw new Exception("Can't assign " + profile.getProfile() + " to container " + id + ", due to maxInstances (" + profile.getMaximumInstances() + ").");
         } else {
             for (int i = 0; i < count; i++) {
-                profiles.put(container.getVersion().getProfile(profile.getProfile()), true);
+                profiles.put(profile.getProfile(), true);
             }
         }
     }
 
     @Override
     public int getProfileCount(String profileId) {
-        if (profiles.containsKey(container.getVersion().getProfile(profileId))) {
+        if (profiles.containsKey(profileId)) {
             return 1;
         } else {
             return 0;
@@ -156,21 +159,25 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
             return;
         }
 
-        final Set<Profile> currentProfiles = new HashSet<>();
+        // Get current profiles for the container
+        final Set<String> currentProfiles = new HashSet<>();
         if (container != null) {
-            currentProfiles.addAll(Arrays.asList(container.getProfiles()));
+            for (Profile profile : container.getProfiles()) {
+                currentProfiles.add(profile.getId());
+            }
         }
 
         // Clean up matching profiles that have no requirements
-        for (Profile profile : currentProfiles) {
-            if (profilePattern.reset(profile.getId()).matches() && !hasProfile(profile)) {
+        for (String profile : currentProfiles) {
+            if (profilePattern.reset(profile).matches() && !hasProfile(profile)) {
                 this.removeProfile(profile);
             }
         }
 
-        final Set<Profile> resultProfiles = new HashSet<>(currentProfiles);
-        for (Map.Entry<Profile, Boolean> entry : profiles.entrySet()) {
-            final Profile profile = entry.getKey();
+        // Find the changes
+        final List<String> resultProfiles = new LinkedList<>(currentProfiles);
+        for (Map.Entry<String, Boolean> entry : profiles.entrySet()) {
+            final String profile = entry.getKey();
             final Boolean assigned = entry.getValue();
             if (assigned) {
                 resultProfiles.add(profile);
@@ -178,18 +185,18 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                 resultProfiles.remove(profile);
             }
         }
+
+        // Apply possible changes
         if (!resultProfiles.equals(currentProfiles)) {
-            Profile[] sortedResult = resultProfiles.toArray(new Profile[resultProfiles.size()]);
-            Arrays.sort(sortedResult, new Comparator<Profile>() {
-                @Override
-                public int compare(Profile profile, Profile t1) {
-                    return profile.getId().compareToIgnoreCase(t1.getId());
-                }
-            });
+            Collections.sort(resultProfiles);
             if (container != null) {
+                List<Profile> profiles = new ArrayList<>();
+                for (String profileId : resultProfiles) {
+                    profiles.add(container.getVersion().getProfile(profileId));
+                }
                 // Adjust existing container
                 LOGGER.info("Setting profiles for container {}", container.getId());
-                container.setProfiles(sortedResult);
+                container.setProfiles(profiles.toArray(new Profile[profiles.size()]));
             } else {
                 // Create container
                 // TODO: 14.2.2016 create a new container and apply the profiles on it
