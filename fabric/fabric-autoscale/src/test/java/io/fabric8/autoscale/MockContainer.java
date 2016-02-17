@@ -24,6 +24,7 @@ public class MockContainer implements Container {
     private String ipAddress;
     private String versionId;
     private Version version;
+    private Boolean destroyed;
 
     public MockContainer(String id, Boolean alive, String ipAddress) {
         this.id = id;
@@ -158,7 +159,7 @@ public class MockContainer implements Container {
 
     @Override
     public void addProfiles(Profile... profiles) {
-
+        profileList.addAll(Arrays.asList(profiles));
     }
 
     @Override
@@ -298,12 +299,12 @@ public class MockContainer implements Container {
 
     @Override
     public void destroy() {
-
+        this.destroyed = true;
     }
 
     @Override
     public void destroy(boolean force) {
-
+        destroy();
     }
 
     @Override
@@ -388,6 +389,6 @@ public class MockContainer implements Container {
 
     @Override
     public boolean isAliveAndOK() {
-        return false;
+        return alive;
     }
 }

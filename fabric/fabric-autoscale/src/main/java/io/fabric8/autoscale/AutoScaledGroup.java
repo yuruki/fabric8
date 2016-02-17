@@ -7,6 +7,10 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
 import io.fabric8.api.Container;
@@ -314,9 +318,23 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     public void apply() {
-        // Apply changes to containers
+        ExecutorService taskExecutor = Executors.newFixedThreadPool(containerList.size());
         for (AutoScaledContainer container : containerList) {
-            new Thread(container, "AutoScaler thread for container " + container.getId()).start();
+            taskExecutor.execute(container);
+        }
+        taskExecutor.shutdown();
+    }
+
+    public void applyAndWait(long maxWait) {
+        ExecutorService taskExecutor = Executors.newFixedThreadPool(containerList.size());
+        for (AutoScaledContainer container : containerList) {
+            taskExecutor.execute(container);
+        }
+        taskExecutor.shutdown();
+        try {
+            taskExecutor.awaitTermination(maxWait, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace(); // ignored
         }
     }
 

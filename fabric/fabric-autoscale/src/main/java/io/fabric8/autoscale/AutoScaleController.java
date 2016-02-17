@@ -24,7 +24,6 @@ import io.fabric8.api.Containers;
 import io.fabric8.api.DataStore;
 import io.fabric8.api.FabricRequirements;
 import io.fabric8.api.FabricService;
-import io.fabric8.api.Profile;
 import io.fabric8.api.ProfileRequirements;
 import io.fabric8.api.jcip.GuardedBy;
 import io.fabric8.api.jcip.ThreadSafe;
@@ -51,12 +50,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Timer;
@@ -279,7 +275,8 @@ public final class AutoScaleController extends AbstractComponent implements Grou
                 containerPrefix,
                 minimumContainerCount,
                 defaultMaximumInstancesPerHost);
-            AutoScaledGroup autoScaledGroup = new AutoScaledGroup(autoscalerGroupId, options, service.getContainers(), service.getRequirements().getProfileRequirements());
+            List<ProfileRequirements> profileRequirements = service.getRequirements().getProfileRequirements();
+            AutoScaledGroup autoScaledGroup = new AutoScaledGroup(autoscalerGroupId, options, service.getContainers(), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
             autoScaledGroup.apply();
         } catch (Exception e) {
             LOGGER.error("AutoScaledGroup {} failed", autoscalerGroupId, e);

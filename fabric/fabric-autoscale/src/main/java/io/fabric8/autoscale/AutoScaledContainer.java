@@ -138,8 +138,24 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         }
     }
 
+    public void remove() {
+        this.remove = true;
+        host.removeProfileContainer(this);
+        profiles.clear();
+    }
+
+    public ProfileContainer getHost() {
+        return host;
+    }
+
     @Override
     public void run() {
+        if (remove) {
+            // Remove container
+            container.destroy(true);
+            return;
+        }
+
         final Set<Profile> currentProfiles = new HashSet<>();
         if (container != null) {
             currentProfiles.addAll(Arrays.asList(container.getProfiles()));
@@ -179,15 +195,5 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                 // TODO: 14.2.2016 create a new container and apply the profiles on it
             }
         }
-    }
-
-    public void remove() {
-        this.remove = true;
-        host.removeProfileContainer(this);
-        profiles.clear();
-    }
-
-    public ProfileContainer getHost() {
-        return host;
     }
 }
