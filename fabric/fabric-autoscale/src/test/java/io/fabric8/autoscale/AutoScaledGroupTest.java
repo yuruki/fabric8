@@ -193,7 +193,7 @@ public class AutoScaledGroupTest {
         autoScaledGroup.applyAndWait(5000);
 
         // We should have a new container to accommodate the third profile
-        assertEquals("Too few containers", 3, autoScaledGroup.getContainers().size());
+        assertEquals("Too few containers", 2, autoScaledGroup.getContainers().size());
         assertEquals("autoScaledGroup doesn't have exactly two instances of min2Profile", 2, autoScaledGroup.getProfileCount(min2Profile));
 
         // Non-matching parts should remain untouched
