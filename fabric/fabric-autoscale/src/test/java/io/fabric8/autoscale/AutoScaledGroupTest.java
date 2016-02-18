@@ -130,7 +130,7 @@ public class AutoScaledGroupTest {
             .defaultMaximumInstancesPerHost(1);
 
         // Set up auto-scaled group
-        assertEquals("Warnings or errors logged too early", 0, appender.getLog().size()); // Nothing logged yet
+        assertEquals("Warnings or errors logged too early", 0, appender.getLog().size());
         AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.applyAndWait(5000);
 
@@ -185,17 +185,16 @@ public class AutoScaledGroupTest {
             .scaleContainers(true)
             .inheritRequirements(true)
             .containerPrefix("auto")
-            .minContainerCount(0)
             .defaultMaximumInstancesPerHost(1)
             .averageAssignmentsPerContainer(10);
 
         // Set up auto-scaled group
-        assertEquals("Warnings or errors logged too early", 0, appender.getLog().size()); // Nothing logged yet
+        assertEquals("Warnings or errors logged too early", 0, appender.getLog().size());
         AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.applyAndWait(5000);
 
         // We should have a new container to accommodate the third profile
-        assertEquals("Too few containers", 2, autoScaledGroup.getContainers().size());
+        assertEquals("Too few containers", 2, autoScaledGroup.getContainerCount());
         assertEquals("autoScaledGroup doesn't have exactly two instances of min2Profile", 2, autoScaledGroup.getProfileCount(min2Profile));
 
         // Non-matching parts should remain untouched
@@ -205,9 +204,69 @@ public class AutoScaledGroupTest {
 
         // Matching initial container should now have two profiles
         List<Profile> oneContainerProfiles = Arrays.asList(oneContainer.getProfiles());
-        //assertEquals("oneContainer doesn't have exactly two profiles", 2, oneContainerProfiles.size());
+        assertEquals("oneContainer doesn't have exactly two profiles", 2, oneContainerProfiles.size());
         assertTrue("oneContainer doesn't have oneProfile", oneContainerProfiles.contains(oneProfile));
         assertTrue("oneContainer doesn't have min2Profile", oneContainerProfiles.contains(min2Profile));
+    }
+
+    @Test
+    public void testTooManyContainers() throws Exception {
+        List<ProfileRequirements> profileRequirements;
+
+        // Set up profiles and versions
+        MockProfile oneProfile = new MockProfile("one-profile");
+        MockProfile otherProfile = new MockProfile("other-profile");
+        MockProfile noreqProfile = new MockProfile("no-requirements-auto");
+        MockProfile min1Profile = new MockProfile("min1-auto");
+        MockVersion version = new MockVersion("1.0");
+        version.addProfile(oneProfile);
+        version.addProfile(otherProfile);
+        version.addProfile(noreqProfile);
+        version.addProfile(min1Profile);
+
+        // Set up initial containers
+        List<Container> containerList = new ArrayList<>();
+        MockContainer oneContainer = new MockContainer("auto1", true, "1");
+        oneContainer.setVersion(version);
+        oneContainer.addProfiles(oneProfile);
+        containerList.add(oneContainer);
+        MockContainer otherContainer = new MockContainer("auto2", true, "1");
+        otherContainer.setVersion(version);
+        otherContainer.addProfiles(otherProfile);
+        containerList.add(otherContainer);
+        MockContainer thirdContainer = new MockContainer("auto3", true, "1");
+        otherContainer.setVersion(version);
+        containerList.add(otherContainer);
+
+        // Set up profile requirements
+        profileRequirements = new ArrayList<>();
+        profileRequirements.add(new ProfileRequirements(noreqProfile.getId())); // No requirements
+        profileRequirements.add(new ProfileRequirements(min1Profile.getId()).minimumInstances(1)); // Minimum instances
+
+        // Set up options
+        AutoScaledGroupOptions options = new AutoScaledGroupOptions()
+            .containerPattern(Pattern.compile("^auto.*$").matcher(""))
+            .profilePattern(Pattern.compile("^.*-auto$").matcher(""))
+            .scaleContainers(true)
+            .inheritRequirements(true)
+            .containerPrefix("auto")
+            .defaultMaximumInstancesPerHost(1)
+            .averageAssignmentsPerContainer(10);
+
+        // Set up auto-scaled group
+        assertEquals("Warnings or errors logged too early", 0, appender.getLog().size());
+        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
+        autoScaledGroup.applyAndWait(5000);
+
+        // We should have two container left
+        assertEquals("There should be exactly two containers left", 2, autoScaledGroup.getContainerCount());
+        assertEquals("autoScaledGroup doesn't have exactly one instance of min1Profile", 1, autoScaledGroup.getProfileCount(min1Profile));
+
+        // Non-matching parts should remain untouched
+        List<Profile> otherContainerProfiles = Arrays.asList(otherContainer.getProfiles());
+        assertTrue("otherContainer doesn't have otherProfile", otherContainerProfiles.contains(otherProfile));
+        List<Profile> oneContainerProfiles = Arrays.asList(oneContainer.getProfiles());
+        assertTrue("oneContainer doesn't have oneProfile", oneContainerProfiles.contains(oneProfile));
     }
 
     private class TestAppender extends AppenderSkeleton {

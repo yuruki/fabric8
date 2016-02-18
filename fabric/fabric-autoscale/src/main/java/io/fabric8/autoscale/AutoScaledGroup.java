@@ -36,7 +36,7 @@ public class AutoScaledGroup extends ProfileContainer {
         // Collect all applicable profile requirements
         int profileInstancesTotal = 0; // Total number of required profile instances
         int requiredHosts = 0; // Number of hosts needed to satisfy the requirements
-        for (ProfileRequirements profile : checkProfileRequirements(profileRequirements, options.getProfilePattern(), options.getInheritRequirements())) {
+        for (ProfileRequirements profile : pruneProfileRequirements(profileRequirements, options.getProfilePattern(), options.getInheritRequirements())) {
             if (profile.getMaximumInstancesPerHost() == null) {
                 profile.setMaximumInstancesPerHost(options.getDefaultMaximumInstancesPerHost());
             }
@@ -200,35 +200,35 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     // Check the profile requirements against profile pattern and check the profile dependencies
-    private static List<ProfileRequirements> checkProfileRequirements(final ProfileRequirements[] profileRequirements, final Matcher profilePattern, final Boolean inheritRequirements) {
+    private static List<ProfileRequirements> pruneProfileRequirements(final ProfileRequirements[] profileRequirements, final Matcher profilePattern, final Boolean inheritRequirements) {
         Map<String, ProfileRequirements> profileRequirementsMap = new HashMap<>();
         for (ProfileRequirements p : profileRequirements) {
             profileRequirementsMap.put(p.getProfile(), p);
         }
-        Map<String, ProfileRequirements> checkedProfileRequirements = new HashMap<>();
+        Map<String, ProfileRequirements> prunedProfileRequirements = new HashMap<>();
         for (ProfileRequirements p : profileRequirements) {
             if (p.hasMinimumInstances()) {
                 // Skip root requirements without minimum instances
-                checkProfileRequirements(p, checkedProfileRequirements, profileRequirementsMap, profilePattern, inheritRequirements);
+                pruneProfileRequirements(p, prunedProfileRequirements, profileRequirementsMap, profilePattern, inheritRequirements);
             }
         }
-        return new ArrayList<>(checkedProfileRequirements.values());
+        return new ArrayList<>(prunedProfileRequirements.values());
     }
 
-    private static Map<String, ProfileRequirements> checkProfileRequirements(final ProfileRequirements parent, final Map<String, ProfileRequirements> checkedProfileRequirements, final Map<String, ProfileRequirements> profileRequirementsMap, final Matcher profilePattern, final Boolean inheritRequirements) {
+    private static Map<String, ProfileRequirements> pruneProfileRequirements(final ProfileRequirements parent, final Map<String, ProfileRequirements> prunedProfileRequirements, final Map<String, ProfileRequirements> profileRequirementsMap, final Matcher profilePattern, final Boolean inheritRequirements) {
         if (parent == null || !profilePattern.reset(parent.getProfile()).matches()) {
             // At the end or profile doesn't match the profile pattern
-            return checkedProfileRequirements;
+            return prunedProfileRequirements;
         }
         // Add this profile requirement to the result
-        checkedProfileRequirements.put(parent.getProfile(), parent);
+        prunedProfileRequirements.put(parent.getProfile(), parent);
         if (parent.getDependentProfiles() == null) {
             // Profile doesn't have dependencies
-            return checkedProfileRequirements;
+            return prunedProfileRequirements;
         }
         if (!parent.hasMinimumInstances()) {
             // Profile doesn't have instances, skip the dependencies
-            return checkedProfileRequirements;
+            return prunedProfileRequirements;
         }
         // Check the profile dependencies
         for (String profile : parent.getDependentProfiles()) {
@@ -260,9 +260,9 @@ public class AutoScaledGroup extends ProfileContainer {
                     continue;
                 }
             }
-            checkProfileRequirements(dependency, checkedProfileRequirements, profileRequirementsMap, profilePattern, inheritRequirements);
+            pruneProfileRequirements(dependency, prunedProfileRequirements, profileRequirementsMap, profilePattern, inheritRequirements);
         }
-        return checkedProfileRequirements;
+        return prunedProfileRequirements;
     }
 
     // Return the preferred maximum profile assignment count for a single container
@@ -387,5 +387,15 @@ public class AutoScaledGroup extends ProfileContainer {
 
     public AutoScaledGroupOptions getOptions() {
         return options;
+    }
+
+    public int getContainerCount() {
+        int count = 0;
+        for (ProfileContainer container : containerList) {
+            if (!container.isRemoved()) {
+                count++;
+            }
+        }
+        return count;
     }
 }
