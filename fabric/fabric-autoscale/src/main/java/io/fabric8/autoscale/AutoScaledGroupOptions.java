@@ -23,6 +23,10 @@ public class AutoScaledGroupOptions {
     public static final String MIN_CONTAINER_COUNT_DEFAULT = "0";
     private Integer defaultMaximumInstancesPerHost = 1;
     public static final String DEFAULT_MAX_INSTANCES_PER_HOST_DEFAULT = "1";
+    private Boolean ignoreErrors = true;
+    public static final String IGNORE_ERRORS_DEFAULT = "true";
+    private Integer maxContainersPerHost = 0;
+    public static final String MAX_CONTAINERS_PER_HOST_DEFAULT = "0";
 
     public AutoScaledGroupOptions() {}
 
@@ -35,7 +39,9 @@ public class AutoScaledGroupOptions {
         Integer averageAssignmentsPerContainer,
         String containerPrefix,
         Integer minContainerCount,
-        Integer defaultMaximumInstancesPerHost) {
+        Integer defaultMaximumInstancesPerHost,
+        Boolean ignoreErrors,
+        Integer maxContainersPerHost) {
         this.containerPattern = containerPattern;
         this.profilePattern = profilePattern;
         this.scaleContainers = scaleContainers;
@@ -45,6 +51,8 @@ public class AutoScaledGroupOptions {
         this.containerPrefix = containerPrefix;
         this.minContainerCount = minContainerCount;
         this.defaultMaximumInstancesPerHost = defaultMaximumInstancesPerHost;
+        this.ignoreErrors = ignoreErrors;
+        this.maxContainersPerHost = maxContainersPerHost;
     }
 
     public AutoScaledGroupOptions containerPattern(Matcher containerPattern) {
@@ -89,6 +97,16 @@ public class AutoScaledGroupOptions {
 
     public AutoScaledGroupOptions defaultMaximumInstancesPerHost(Integer defaultMaximumInstancesPerHost) {
         setDefaultMaximumInstancesPerHost(defaultMaximumInstancesPerHost);
+        return this;
+    }
+
+    public AutoScaledGroupOptions ignoreErrors(Boolean ignoreErrors) {
+        setIgnoreErrors(ignoreErrors);
+        return this;
+    }
+
+    public AutoScaledGroupOptions maxContainersPerHost(Integer maxContainersPerHost) {
+        setMaxContainersPerHost(maxContainersPerHost);
         return this;
     }
 
@@ -162,5 +180,21 @@ public class AutoScaledGroupOptions {
 
     public void setDefaultMaximumInstancesPerHost(Integer defaultMaximumInstancesPerHost) {
         this.defaultMaximumInstancesPerHost = defaultMaximumInstancesPerHost;
+    }
+
+    public Boolean getIgnoreErrors() {
+        return ignoreErrors;
+    }
+
+    public void setIgnoreErrors(Boolean ignoreErrors) {
+        this.ignoreErrors = ignoreErrors;
+    }
+
+    public Integer getMaxContainersPerHost() {
+        return maxContainersPerHost;
+    }
+
+    public void setMaxContainersPerHost(Integer maxContainersPerHost) {
+        this.maxContainersPerHost = maxContainersPerHost;
     }
 }

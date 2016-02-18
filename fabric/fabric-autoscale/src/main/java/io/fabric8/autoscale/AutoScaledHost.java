@@ -87,6 +87,24 @@ public class AutoScaledHost extends ProfileContainer {
         containerList.remove(container);
     }
 
+    public boolean hasRootContainer() {
+        return rootContainer != null;
+    }
+
+    public Container getRootContainer() {
+        return rootContainer;
+    }
+
+    public int getContainerCount() {
+        int count = 0;
+        for (ProfileContainer container : containerList) {
+            if (!container.isRemoved()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private class SortProfileContainers implements Comparator<ProfileContainer> {
         @Override
         public int compare(ProfileContainer container, ProfileContainer t1) {

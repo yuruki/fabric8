@@ -32,9 +32,9 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     private final Boolean newHost;
 
     private AutoScaledHost host;
-    private Boolean remove = false;
+    private Boolean removed = false;
 
-    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group, boolean newHost) {
+    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group, boolean newHost) throws Exception {
         this.container = container;
         this.id = id;
         this.profilePattern = profilePattern;
@@ -49,21 +49,30 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
             // New container on a new host
             setHost(UUID.randomUUID().toString()); // Any unique value goes
         } else {
-            // New container on an existing host
-            // TODO: 17.2.2016 only if container provider is child otherwise throw ex, null checks
-            List<Container> rootContainers = group.getRootContainers();
+            // New (child) container on an existing host
+            // TODO: 17.2.2016 only if container provider is child otherwise throw ex
+            List<Container> rootContainers = new LinkedList<>();
+            for (AutoScaledHost host : hostMap.values()) {
+                if (host.hasRootContainer()) {
+                    rootContainers.add(host.getRootContainer());
+                }
+            }
             Collections.sort(rootContainers, new SortRootContainers());
-            setHost(rootContainers.get(0));
+            if (rootContainers.get(0) != null) {
+                setHost(rootContainers.get(0));
+            } else {
+                throw new Exception("Can't add a child container. No root containers available.");
+            }
         }
 
-        // Collect current profiles
-        if (container != null) {
-            for (Profile profile : Arrays.asList(container.getProfiles())) {
-                if (profilePattern.reset(profile.getId()).matches()) {
-                    try {
+        if (group.getOptions().getMaxContainersPerHost() > 0 && host.getContainerCount() > group.getOptions().getMaxContainersPerHost()) {
+            remove(); // Schedule the container to be removed
+        } else {
+            // Collect current profiles
+            if (container != null) {
+                for (Profile profile : Arrays.asList(container.getProfiles())) {
+                    if (profilePattern.reset(profile.getId()).matches()) {
                         profiles.put(profile.getId(), true);
-                    } catch (Exception e) {
-                        LOGGER.error("Couldn't add profile {} to container {}", profile.getId(), id);
                     }
                 }
             }
@@ -78,11 +87,11 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         }
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) {
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) throws Exception {
         return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap(), group, false);
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id, boolean newHost) {
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id, boolean newHost) throws Exception {
         return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap(), group, newHost);
     }
 
@@ -164,8 +173,9 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         }
     }
 
+    @Override
     public void remove() {
-        this.remove = true;
+        this.removed = true;
         host.removeProfileContainer(this);
         profiles.clear();
     }
@@ -176,7 +186,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     @Override
     public void run() {
-        if (remove) {
+        if (container != null && removed) {
             // Remove container
             container.destroy(true);
             return;
@@ -197,7 +207,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
             }
         }
 
-        // Find the changes
+        // Find the differences
         final List<String> resultProfiles = new LinkedList<>(currentProfiles);
         for (Map.Entry<String, Boolean> entry : profiles.entrySet()) {
             final String profile = entry.getKey();

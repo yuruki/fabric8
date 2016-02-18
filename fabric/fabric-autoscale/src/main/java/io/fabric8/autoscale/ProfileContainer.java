@@ -6,6 +6,7 @@ import io.fabric8.api.ProfileRequirements;
 public abstract class ProfileContainer {
 
     protected String id = "default";
+    protected Boolean removed = false;
 
     final public boolean hasProfile(Profile profile) {
         return hasProfile(profile.getId());
@@ -55,5 +56,13 @@ public abstract class ProfileContainer {
 
     final public String getId() {
         return id;
+    }
+
+    public void remove() {
+        removed = true;
+    }
+
+    final public boolean isRemoved() {
+        return removed;
     }
 }

@@ -96,20 +96,26 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     private static final String SCALE_CONTAINERS = "scaleContainers";
     private Boolean scaleContainers;
     @Property(value = AutoScaledGroupOptions.DEFAULT_MAX_INSTANCES_PER_HOST_DEFAULT, label = "Default maximum instances per host", description = "Default maximum for instances per host when profile doesn't define it.")
-    private static final String DEFAULT_MAXIMUM_INSTANCES_PER_HOST = "defaultMaximumInstancesPerHost";
+    private static final String DEFAULT_MAX_INSTANCES_PER_HOST = "defaultMaximumInstancesPerHost";
     private Integer defaultMaximumInstancesPerHost;
     @Property(value = AutoScaledGroupOptions.MIN_CONTAINER_COUNT_DEFAULT, label = "Minimum number of containers", description = "Minimum number of applicable containers to perform autoscaling.")
-    private static final String MINIMUM_CONTAINER_COUNT = "minimumContainerCount";
-    private Integer minimumContainerCount;
+    private static final String MIN_CONTAINER_COUNT = "minContainerCount";
+    private Integer minContainerCount;
     @Property(value = AutoScaledGroupOptions.MAX_DEVIATION_DEFAULT, label = "Maximum deviation, n * average (n >= 0)", description = "If one container has more than average + (n * average) profiles assigned, the excess will be reassigned.")
-    private static final String MAXIMUM_DEVIATION = "maximumDeviation";
-    private Double maximumDeviation;
+    private static final String MAX_DEVIATION = "maxDeviation";
+    private Double maxDeviation;
     @Property(value = AutoScaledGroupOptions.INHERIT_REQUIREMENTS_DEFAULT, label = "Inherit requirements", description = "Profile dependencies will inherit their requirements from parent if their requirements are not set.")
     private static final String INHERIT_REQUIREMENTS = "inheritRequirements";
     private Boolean inheritRequirements;
     @Property(value = AutoScaledGroupOptions.AVERAGE_ASSIGNMENTS_PER_CONTAINER_DEFAULT, label = "Desired average assignment count per container", description = "Desired average profile assignment count per container. Negative value equals no value.")
     private static final String AVERAGE_ASSIGNMENTS_PER_CONTAINER = "averageAssignmentsPerContainer";
     private Integer averageAssignmentsPerContainer;
+    @Property(value = AutoScaledGroupOptions.IGNORE_ERRORS_DEFAULT, label = "Don't cancel auto-scaling on error", description = "When enabled, errors will be logged but the auto-scaling will be performed regardless.")
+    private static final String IGNORE_ERRORS = "ignoreErrors";
+    private Boolean ignoreErrors;
+    @Property(value = AutoScaledGroupOptions.MAX_CONTAINERS_PER_HOST_DEFAULT, label = "Maximum allowed auto-scaled containers per host", description = "Maximum number of auto-scaled containers per host for this group.")
+    private static final String MAX_CONTAINERS_PER_HOST = "maxContainersPerHost";
+    private Integer maxContainersPerHost;
 
     private AtomicReference<Timer> timer = new AtomicReference<Timer>();
 
@@ -131,12 +137,14 @@ public final class AutoScaleController extends AbstractComponent implements Grou
         this.containerPattern = Pattern.compile(properties.get(CONTAINER_PATTERN)).matcher("");
         this.containerPrefix = properties.get(CONTAINER_PREFIX);
         this.scaleContainers = Boolean.parseBoolean(properties.get(SCALE_CONTAINERS));
-        this.defaultMaximumInstancesPerHost = Integer.parseInt(properties.get(DEFAULT_MAXIMUM_INSTANCES_PER_HOST));
+        this.defaultMaximumInstancesPerHost = Integer.parseInt(properties.get(DEFAULT_MAX_INSTANCES_PER_HOST));
         this.autoscalerGroupId = properties.get(AUTOSCALER_GROUP_ID);
-        this.minimumContainerCount = Integer.parseInt(properties.get(MINIMUM_CONTAINER_COUNT));
-        this.maximumDeviation = Double.parseDouble(properties.get(MAXIMUM_DEVIATION)) >= 0 ? Double.parseDouble(properties.get(MAXIMUM_DEVIATION)) : 1;
+        this.minContainerCount = Integer.parseInt(properties.get(MIN_CONTAINER_COUNT));
+        this.maxDeviation = Double.parseDouble(properties.get(MAX_DEVIATION)) >= 0 ? Double.parseDouble(properties.get(MAX_DEVIATION)) : 1;
         this.inheritRequirements = Boolean.parseBoolean(properties.get(INHERIT_REQUIREMENTS));
         this.averageAssignmentsPerContainer = Integer.parseInt(properties.get(AVERAGE_ASSIGNMENTS_PER_CONTAINER));
+        this.ignoreErrors = Boolean.parseBoolean(properties.get(IGNORE_ERRORS));
+        this.maxContainersPerHost = Integer.parseInt(properties.get(MAX_CONTAINERS_PER_HOST));
         CuratorFramework curator = this.curator.get();
         enableMasterZkCache(curator);
         group = new ZooKeeperGroup<AutoScalerNode>(curator, ZkPath.AUTO_SCALE_CLUSTER.getPath() + "/" + autoscalerGroupId, AutoScalerNode.class);
@@ -231,7 +239,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
         autoScale();
     }
 
-    private void autoScale2() {
+    private void autoScale_original() {
         FabricService service = fabricService.get();
         FabricRequirements requirements = service.getRequirements();
         List<ProfileRequirements> profileRequirements = requirements.getProfileRequirements();
@@ -270,16 +278,18 @@ public final class AutoScaleController extends AbstractComponent implements Grou
                 profilePattern,
                 scaleContainers,
                 inheritRequirements,
-                maximumDeviation,
+                maxDeviation,
                 averageAssignmentsPerContainer,
                 containerPrefix,
-                minimumContainerCount,
-                defaultMaximumInstancesPerHost);
+                minContainerCount,
+                defaultMaximumInstancesPerHost,
+                ignoreErrors,
+                maxContainersPerHost);
             List<ProfileRequirements> profileRequirements = service.getRequirements().getProfileRequirements();
             AutoScaledGroup autoScaledGroup = new AutoScaledGroup(autoscalerGroupId, options, service.getContainers(), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
             autoScaledGroup.apply();
         } catch (Exception e) {
-            LOGGER.error("AutoScaledGroup {} failed", autoscalerGroupId, e);
+            LOGGER.error("AutoScaledGroup {} canceled", autoscalerGroupId, e);
         }
     }
 
