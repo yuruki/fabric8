@@ -19,6 +19,8 @@ import static org.junit.Assert.*;
 
 public class AutoScaledGroupTest {
 
+    private final MockFabricService fabricService = new MockFabricService();
+
     private TestAppender appender;
     private Logger logger = Logger.getLogger(AutoScaledGroup.class);
 
@@ -71,7 +73,7 @@ public class AutoScaledGroupTest {
             .defaultMaximumInstancesPerHost(1);
 
         // Set up auto-scaled group
-        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
+        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.applyAndWait(5000);
 
         // Non-matching parts should remain untouched
@@ -129,7 +131,7 @@ public class AutoScaledGroupTest {
 
         // Set up auto-scaled group
         assertEquals("Warnings or errors logged too early", 0, appender.getLog().size()); // Nothing logged yet
-        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
+        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.applyAndWait(5000);
 
         // Non-matching parts should remain untouched
@@ -189,7 +191,7 @@ public class AutoScaledGroupTest {
 
         // Set up auto-scaled group
         assertEquals("Warnings or errors logged too early", 0, appender.getLog().size()); // Nothing logged yet
-        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
+        AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.applyAndWait(5000);
 
         // We should have a new container to accommodate the third profile

@@ -11,6 +11,8 @@ import static org.junit.Assert.*;
 
 public class ProfileContainerTest {
 
+    private final MockFabricService fabricService = new MockFabricService();
+
     private List<ProfileContainer> profileContainers;
     private AutoScaledGroup autoScaledGroup;
     private AutoScaledHost autoScaledHost;
@@ -63,7 +65,7 @@ public class ProfileContainerTest {
             .defaultMaximumInstancesPerHost(1);
 
         // Set up testables
-        autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
+        autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.apply();
         autoScaledHost = autoScaledGroup.getHosts().get(0);
         autoScaledContainer = autoScaledGroup.getContainers().get(0);

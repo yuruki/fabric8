@@ -286,7 +286,12 @@ public final class AutoScaleController extends AbstractComponent implements Grou
                 ignoreErrors,
                 maxContainersPerHost);
             List<ProfileRequirements> profileRequirements = service.getRequirements().getProfileRequirements();
-            AutoScaledGroup autoScaledGroup = new AutoScaledGroup(autoscalerGroupId, options, service.getContainers(), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]));
+            AutoScaledGroup autoScaledGroup = new AutoScaledGroup(
+                autoscalerGroupId,
+                options,
+                service.getContainers(),
+                profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]),
+                new ContainerFactory(service));
             autoScaledGroup.apply();
         } catch (Exception e) {
             LOGGER.error("AutoScaledGroup {} canceled", autoscalerGroupId, e);

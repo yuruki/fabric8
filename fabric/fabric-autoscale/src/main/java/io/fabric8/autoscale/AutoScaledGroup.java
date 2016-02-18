@@ -29,7 +29,7 @@ public class AutoScaledGroup extends ProfileContainer {
     private final AutoScaledGroupOptions options;
     private final Long maxAssignmentsPerContainer;
 
-    public AutoScaledGroup(final String groupId, final AutoScaledGroupOptions options, final Container[] containers, final ProfileRequirements[] profileRequirements) throws Exception {
+    public AutoScaledGroup(final String groupId, final AutoScaledGroupOptions options, final Container[] containers, final ProfileRequirements[] profileRequirements, ContainerFactory containerFactory) throws Exception {
         this.id = groupId;
         this.options = options;
 
@@ -77,7 +77,7 @@ public class AutoScaledGroup extends ProfileContainer {
             if (desiredContainerCount < requiredHosts) {
                 desiredContainerCount = requiredHosts;
             }
-            adjustContainerCount(desiredContainerCount - containerList.size(), requiredHosts - collectedHosts.size());
+            adjustContainerCount(desiredContainerCount - containerList.size(), requiredHosts - collectedHosts.size(), containerFactory);
         } else {
             for (Container container : containers) {
                 if (options.getContainerPattern().reset(container.getId()).matches() && container.isAlive()) {
@@ -101,13 +101,13 @@ public class AutoScaledGroup extends ProfileContainer {
         applyProfileRequirements();
     }
 
-    private void adjustContainerCount(int containerDelta, int hostDelta) throws Exception {
+    private void adjustContainerCount(int containerDelta, int hostDelta, ContainerFactory containerFactory) throws Exception {
         if (containerDelta > 0) {
             // Add containers
             for (int i = 0; i < containerDelta; i++) {
                 try {
                     String containerId = createContainerId();
-                    AutoScaledContainer container = AutoScaledContainer.newAutoScaledContainer(this, containerId, i < hostDelta);
+                    AutoScaledContainer container = AutoScaledContainer.newAutoScaledContainer(this, containerId, i < hostDelta, containerFactory);
                     containerList.add(container);
                 } catch (Exception e) {
                     LOGGER.error("Failed to create new auto-scaled container.", e);

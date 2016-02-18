@@ -30,17 +30,19 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     private final Matcher profilePattern;
     private final AutoScaledGroup group;
     private final Boolean newHost;
+    private final ContainerFactory containerFactory;
 
     private AutoScaledHost host;
     private Boolean removed = false;
 
-    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group, boolean newHost) throws Exception {
+    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group, boolean newHost, ContainerFactory containerFactory) throws Exception {
         this.container = container;
         this.id = id;
         this.profilePattern = profilePattern;
         this.hostMap = hostMap;
         this.group = group;
         this.newHost = newHost;
+        this.containerFactory = containerFactory;
 
         if (container != null) {
             // Existing container
@@ -88,11 +90,11 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     }
 
     public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) throws Exception {
-        return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap(), group, false);
+        return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap(), group, false, null);
     }
 
-    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id, boolean newHost) throws Exception {
-        return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap(), group, newHost);
+    public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id, boolean newHost, ContainerFactory containerFactory) throws Exception {
+        return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap(), group, newHost, containerFactory);
     }
 
     private void setHost(AutoScaledHost host) {
@@ -235,7 +237,8 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                 }
             } else {
                 // Create container
-                // TODO: 14.2.2016 create a new container and apply the profiles on it
+                // TODO: generalize for any provider, null checks
+                containerFactory.createChildContainer(id, resultProfiles.toArray(new String[resultProfiles.size()]), host.getRootContainer());
             }
         }
     }
