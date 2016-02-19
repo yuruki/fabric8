@@ -96,7 +96,7 @@ public final class AutoScaleController extends AbstractComponent implements Grou
     private static final String SCALE_CONTAINERS = "scaleContainers";
     private Boolean scaleContainers;
     @Property(value = AutoScaledGroupOptions.DEFAULT_MAX_INSTANCES_PER_HOST_DEFAULT, label = "Default maximum instances per host", description = "Default maximum for instances per host when profile doesn't define it.")
-    private static final String DEFAULT_MAX_INSTANCES_PER_HOST = "defaultMaximumInstancesPerHost";
+    private static final String DEFAULT_MAX_INSTANCES_PER_HOST = "defaultMaxInstancesPerHost";
     private Integer defaultMaximumInstancesPerHost;
     @Property(value = AutoScaledGroupOptions.MIN_CONTAINER_COUNT_DEFAULT, label = "Minimum number of containers", description = "Minimum number of applicable containers to perform autoscaling.")
     private static final String MIN_CONTAINER_COUNT = "minContainerCount";

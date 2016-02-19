@@ -51,8 +51,7 @@ public class AutoScaledGroup extends ProfileContainer {
         // Collect root container hosts
         for (Container container : containers) {
             if (container.isRoot()) {
-                AutoScaledHost rootHost = new AutoScaledHost(container.getIp(), container);
-                childMap.put(rootHost.getId(), rootHost);
+                addChild(new AutoScaledHost(container.getIp(), container));
             }
         }
 
@@ -81,11 +80,7 @@ public class AutoScaledGroup extends ProfileContainer {
                 }
             }
             if (getGrandChildren().size() < options.getMinContainerCount()) {
-                if (options.getIgnoreErrors()) {
-                    LOGGER.error("Not enough containers (" + getGrandChildren().size() + "), " + options.getMinContainerCount() + " required");
-                } else {
-                    throw new Exception("Not enough containers (" + getGrandChildren().size() + "), " + options.getMinContainerCount() + " required");
-                }
+                throw new Exception("Not enough containers (" + getGrandChildren().size() + "), " + options.getMinContainerCount() + " required");
             }
         }
 
@@ -336,6 +331,10 @@ public class AutoScaledGroup extends ProfileContainer {
 
     public void apply() {
         Set<ProfileContainer> containers = new HashSet<>(getGrandChildren());
+        if (containers.isEmpty()) {
+            LOGGER.debug("No changes to apply");
+            return;
+        }
         ExecutorService taskExecutor = Executors.newFixedThreadPool(containers.size());
         for (ProfileContainer container : containers) {
             taskExecutor.execute((AutoScaledContainer) container);
@@ -343,7 +342,7 @@ public class AutoScaledGroup extends ProfileContainer {
         taskExecutor.shutdown();
     }
 
-    public void applyAndWait(long maxWait) {
+    public void applyAndWait(long maxWaitInMillis) {
         Set<ProfileContainer> containers = new HashSet<>(getGrandChildren());
         ExecutorService taskExecutor = Executors.newFixedThreadPool(containers.size());
         for (ProfileContainer container : containers) {
@@ -351,7 +350,7 @@ public class AutoScaledGroup extends ProfileContainer {
         }
         taskExecutor.shutdown();
         try {
-            taskExecutor.awaitTermination(maxWait, TimeUnit.MILLISECONDS);
+            taskExecutor.awaitTermination(maxWaitInMillis, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             e.printStackTrace(); // ignored
         }
@@ -360,7 +359,7 @@ public class AutoScaledGroup extends ProfileContainer {
     public List<ProfileContainer> getGrandChildren() {
         List<ProfileContainer> result = new ArrayList<>();
         for (ProfileContainer host : getChildren()) {
-            result.addAll(host.getChildren());
+            result.addAll(host.childMap.values()); // Get every container, even the ones marked for removal
         }
         return result;
     }

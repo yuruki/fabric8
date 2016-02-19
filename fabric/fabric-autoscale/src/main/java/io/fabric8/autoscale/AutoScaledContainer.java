@@ -63,7 +63,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                 if (profilePattern.reset(profile.getId()).matches()) {
                     profiles.put(profile.getId(), true);
                 } else if (removable) {
-                    removable = false;
+                    removable = false; // Having unmatched profiles on the container means we can't remove it
                 }
             }
         }
@@ -137,8 +137,18 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     }
 
     @Override
+    public void remove() {
+        super.remove();
+        for (String key : profiles.keySet()) {
+            profiles.put(key, false);
+        }
+    }
+
+    @Override
     public void addProfile(ProfileRequirements profile, int count) throws Exception {
-        if (getProfileCount() + count > group.getMaxAssignmentsPerContainer()) {
+        if (removed){
+            throw new Exception("Can't assign " + profile.getProfile() + " to container marked as removed (" + id + ").");
+        } else if (getProfileCount() + count > group.getMaxAssignmentsPerContainer()) {
             throw new Exception("Can't assign " + profile.getProfile() + " to container " + id + ", due to maxInstancesPerContainer (" + group.getMaxAssignmentsPerContainer() + ").");
         } else if (profile.getMaximumInstancesPerHost() != null && host.getProfileCount(profile) + count > profile.getMaximumInstancesPerHost()) {
             throw new Exception("Can't assign " + profile.getProfile() + " to container " + id + ", due to maxInstancesPerHost (" + profile.getMaximumInstancesPerHost() + ").");
@@ -153,7 +163,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     @Override
     public int getProfileCount(String profileId) {
-        if (profiles.containsKey(profileId)) {
+        if (profiles.containsKey(profileId) && profiles.get(profileId)) {
             return 1;
         } else {
             return 0;
@@ -168,12 +178,13 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     public void run() {
         if (container != null && removed) {
             // Remove container
+            LOGGER.debug("Removing container {}", id);
             container.destroy(true);
             return;
         }
 
         // Get current profiles for the container
-        final Set<String> currentProfiles = new HashSet<>();
+        Set<String> currentProfiles = new HashSet<>();
         if (container != null) {
             for (Profile profile : container.getProfiles()) {
                 currentProfiles.add(profile.getId());
@@ -183,41 +194,42 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         // Clean up matching profiles that have no requirements
         for (String profile : currentProfiles) {
             if (profilePattern.reset(profile).matches() && !hasProfile(profile)) {
-                this.removeProfile(profile);
+                removeProfile(profile);
             }
         }
 
-        // Find the differences
-        final List<String> resultProfiles = new LinkedList<>(currentProfiles);
+        // Find the changes
+        Set<String> resultSet = new HashSet<>(currentProfiles);
         for (Map.Entry<String, Boolean> entry : profiles.entrySet()) {
             final String profile = entry.getKey();
             final Boolean assigned = entry.getValue();
             if (assigned) {
-                resultProfiles.add(profile);
+                resultSet.add(profile);
             } else {
-                resultProfiles.remove(profile);
+                resultSet.remove(profile);
             }
         }
 
         // Apply possible changes
-        if (!resultProfiles.equals(currentProfiles)) {
-            Collections.sort(resultProfiles);
+        if (!resultSet.equals(currentProfiles) || (container != null && !container.isAlive())) {
+            List<String> sortedResult = new LinkedList<>(resultSet);
+            Collections.sort(sortedResult);
             if (container != null) {
                 List<Profile> profiles = new ArrayList<>();
-                for (String profileId : resultProfiles) {
+                for (String profileId : sortedResult) {
                     profiles.add(container.getVersion().getProfile(profileId));
                 }
                 // Adjust existing container
                 LOGGER.info("Setting profiles for container {}", container.getId());
                 container.setProfiles(profiles.toArray(new Profile[profiles.size()]));
                 if (!container.isAlive()) {
-                    container.start(true);
+                    container.start();
                 }
             } else {
                 // Create container
                 // TODO: generalize for any provider, null checks
                 try {
-                    containerFactory.createChildContainer(id, resultProfiles.toArray(new String[resultProfiles.size()]), ((AutoScaledHost) host).getRootContainer());
+                    containerFactory.createChildContainer(id, sortedResult.toArray(new String[sortedResult.size()]), ((AutoScaledHost) host).getRootContainer());
                 } catch (Exception e) {
                     LOGGER.error("Couldn't create child container {}. This exception is ignored.", id, e);
                 }
