@@ -194,7 +194,7 @@ public class AutoScaledGroupTest {
         autoScaledGroup.applyAndWait(5000);
 
         // We should have a new container to accommodate the third profile
-        assertEquals("Too few containers", 2, autoScaledGroup.getContainerCount());
+        assertEquals("Too few containers", 2, autoScaledGroup.getGrandChildren().size());
         assertEquals("autoScaledGroup doesn't have exactly two instances of min2Profile", 2, autoScaledGroup.getProfileCount(min2Profile));
 
         // Non-matching parts should remain untouched
@@ -259,8 +259,8 @@ public class AutoScaledGroupTest {
         autoScaledGroup.applyAndWait(5000);
 
         // We should have two container left
-        assertEquals("There should be exactly two containers left", 2, autoScaledGroup.getContainerCount());
-        assertEquals("autoScaledGroup doesn't have exactly one instance of min1Profile", 1, autoScaledGroup.getProfileCount(min1Profile));
+        assertEquals("Wrong number of auto-scaled containers", 2, autoScaledGroup.getGrandChildren().size());
+        assertEquals("autoScaledGroup has wrong number of min1Profile instances", 1, autoScaledGroup.getProfileCount(min1Profile));
 
         // Non-matching parts should remain untouched
         List<Profile> otherContainerProfiles = Arrays.asList(otherContainer.getProfiles());

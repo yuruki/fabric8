@@ -12,8 +12,11 @@ public class ContainerFactory {
         this.service = service;
     }
 
-    public void createChildContainer(String name, String[] profiles, Container rootContainer) {
+    public void createChildContainer(String name, String[] profiles, Container rootContainer) throws Exception {
         CreateChildContainerOptions.Builder builder = CreateChildContainerOptions.builder();
+        if (rootContainer == null) {
+            throw new Exception("No root container available");
+        }
         builder.parent(rootContainer.getId());
         builder.jmxUser(service.getZooKeeperUser()).jmxPassword(service.getZookeeperPassword()).zookeeperUrl(service.getZookeeperUrl()).zookeeperPassword(service.getZookeeperPassword());
         builder.number(1).version(rootContainer.getVersionId()).profiles(profiles);

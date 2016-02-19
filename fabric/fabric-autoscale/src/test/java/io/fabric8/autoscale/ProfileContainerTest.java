@@ -15,8 +15,8 @@ public class ProfileContainerTest {
 
     private List<ProfileContainer> profileContainers;
     private AutoScaledGroup autoScaledGroup;
-    private AutoScaledHost autoScaledHost;
-    private AutoScaledContainer autoScaledContainer;
+    private ProfileContainer autoScaledHost;
+    private ProfileContainer autoScaledContainer;
     private MockProfile profile1;
     private MockProfile profile2;
     private MockProfile profile3;
@@ -67,8 +67,8 @@ public class ProfileContainerTest {
         // Set up testables
         autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.apply();
-        autoScaledHost = autoScaledGroup.getHosts().get(0);
-        autoScaledContainer = autoScaledGroup.getContainers().get(0);
+        autoScaledHost = autoScaledGroup.getChildren().get(0);
+        autoScaledContainer = autoScaledGroup.getGrandChildren().get(0);
         profileContainers = new ArrayList<>();
         profileContainers.add(autoScaledContainer);
         profileContainers.add(autoScaledHost);

@@ -3,7 +3,6 @@ package io.fabric8.autoscale;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -17,31 +16,22 @@ import java.util.regex.Matcher;
 import io.fabric8.api.Container;
 import io.fabric8.api.Profile;
 import io.fabric8.api.ProfileRequirements;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AutoScaledContainer.class);
-
     private final Container container;
-    private final Map<String, AutoScaledHost> hostMap;
     private final Map<String, Boolean> profiles = new HashMap<>();
     private final Matcher profilePattern;
     private final AutoScaledGroup group;
-    private final Boolean newHost;
     private final ContainerFactory containerFactory;
 
-    private AutoScaledHost host;
-    private Boolean removed = false;
+    private ProfileContainer host;
 
-    private AutoScaledContainer(Container container, String id, Matcher profilePattern, Map<String, AutoScaledHost> hostMap, AutoScaledGroup group, boolean newHost, ContainerFactory containerFactory) throws Exception {
+    private AutoScaledContainer(Container container, String id, AutoScaledGroup group, boolean newHost, ContainerFactory containerFactory) throws Exception {
         this.container = container;
         this.id = id;
-        this.profilePattern = profilePattern;
-        this.hostMap = hostMap;
+        this.profilePattern = group.getProfilePattern();
         this.group = group;
-        this.newHost = newHost;
         this.containerFactory = containerFactory;
 
         if (container != null) {
@@ -53,31 +43,34 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         } else {
             // New (child) container on an existing host
             // TODO: 17.2.2016 only if container provider is child otherwise throw ex
-            List<Container> rootContainers = new LinkedList<>();
-            for (AutoScaledHost host : hostMap.values()) {
-                if (host.hasRootContainer()) {
-                    rootContainers.add(host.getRootContainer());
+            ProfileContainer rootHost = null;
+            for (ProfileContainer host : group.getSortedChildren()) {
+                if (((AutoScaledHost) host).hasRootContainer()) {
+                    rootHost = host;
+                    break;
                 }
             }
-            Collections.sort(rootContainers, new SortRootContainers());
-            if (rootContainers.get(0) != null) {
-                setHost(rootContainers.get(0));
+            if (rootHost != null) {
+                setHost(rootHost);
             } else {
                 throw new Exception("Can't add a child container. No root containers available.");
             }
         }
 
-        if (group.getOptions().getMaxContainersPerHost() > 0 && host.getContainerCount() > group.getOptions().getMaxContainersPerHost()) {
-            remove(); // Schedule the container to be removed
-        } else {
-            // Collect current profiles
-            if (container != null) {
-                for (Profile profile : Arrays.asList(container.getProfiles())) {
-                    if (profilePattern.reset(profile.getId()).matches()) {
-                        profiles.put(profile.getId(), true);
-                    }
+        // Collect current profiles
+        if (container != null) {
+            for (Profile profile : Arrays.asList(container.getProfiles())) {
+                if (profilePattern.reset(profile.getId()).matches()) {
+                    profiles.put(profile.getId(), true);
+                } else if (removable) {
+                    removable = false;
                 }
             }
+        }
+
+        if (removable && group.getOptions().getMaxContainersPerHost() > 0 && host.getChildren().size() > group.getOptions().getMaxContainersPerHost()) {
+            LOGGER.debug("MaxContainersPerHost ({}) exceeded on host {} with container {}. Marking container for removal", group.getOptions().getMaxContainersPerHost(), host.getId(), id);
+            remove(); // Schedule the container to be removed
         }
     }
 
@@ -90,22 +83,22 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     }
 
     public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, Container container) throws Exception {
-        return new AutoScaledContainer(container, container.getId(), group.getProfilePattern(), group.getHostMap(), group, false, null);
+        return new AutoScaledContainer(container, container.getId(), group, false, null);
     }
 
     public static AutoScaledContainer newAutoScaledContainer(AutoScaledGroup group, String id, boolean newHost, ContainerFactory containerFactory) throws Exception {
-        return new AutoScaledContainer(null, id, group.getProfilePattern(), group.getHostMap(), group, newHost, containerFactory);
+        return new AutoScaledContainer(null, id, group, newHost, containerFactory);
     }
 
-    private void setHost(AutoScaledHost host) {
+    private void setHost(ProfileContainer host) {
         this.host = host;
-        hostMap.put(host.getId(), host);
-        host.addProfileContainer(this);
+        host.addChild(this);
+        group.addChild(host);
     }
 
     private void setHost(String hostId, Container rootContainer) {
-        if (hostMap.containsKey(hostId)) {
-            setHost(hostMap.get(hostId));
+        if (group.childMap.containsKey(hostId)) {
+            setHost(group.childMap.get(hostId));
         } else {
             setHost(new AutoScaledHost(hostId, rootContainer));
         }
@@ -113,10 +106,6 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     private void setHost(String hostId) {
         setHost(hostId, null);
-    }
-
-    private void setHost(Container rootContainer) {
-        setHost(rootContainer.getIp(), rootContainer);
     }
 
     @Override
@@ -144,11 +133,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
 
     @Override
     public boolean hasProfile(String profileId) {
-        if (profiles.containsKey(profileId)) {
-            return profiles.get(profileId);
-        } else {
-            return false;
-        }
+        return profiles.containsKey(profileId) && profiles.get(profileId);
     }
 
     @Override
@@ -173,13 +158,6 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
         } else {
             return 0;
         }
-    }
-
-    @Override
-    public void remove() {
-        this.removed = true;
-        host.removeProfileContainer(this);
-        profiles.clear();
     }
 
     public ProfileContainer getHost() {
@@ -238,15 +216,12 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
             } else {
                 // Create container
                 // TODO: generalize for any provider, null checks
-                containerFactory.createChildContainer(id, resultProfiles.toArray(new String[resultProfiles.size()]), host.getRootContainer());
+                try {
+                    containerFactory.createChildContainer(id, resultProfiles.toArray(new String[resultProfiles.size()]), ((AutoScaledHost) host).getRootContainer());
+                } catch (Exception e) {
+                    LOGGER.error("Couldn't create child container {}. This exception is ignored.", id, e);
+                }
             }
-        }
-    }
-
-    private class SortRootContainers implements Comparator<Container> {
-        @Override
-        public int compare(Container container, Container t1) {
-            return container.getChildren().length - t1.getChildren().length;
         }
     }
 }
