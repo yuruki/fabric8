@@ -68,7 +68,7 @@ public class ProfileContainerTest {
         autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
         autoScaledGroup.apply();
         autoScaledHost = autoScaledGroup.getChildren().get(0);
-        autoScaledContainer = autoScaledGroup.getGrandChildren().get(0);
+        autoScaledContainer = autoScaledGroup.getEveryGrandChild().get(0);
         profileContainers = new ArrayList<>();
         profileContainers.add(autoScaledContainer);
         profileContainers.add(autoScaledHost);

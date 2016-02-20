@@ -74,7 +74,7 @@ public class AutoScaledGroupTest {
 
         // Set up auto-scaled group
         AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
-        autoScaledGroup.applyAndWait(5000);
+        autoScaledGroup.apply(5000);
 
         // Non-matching parts should remain untouched
         List<Profile> otherContainerProfiles = Arrays.asList(otherContainer.getProfiles());
@@ -132,7 +132,7 @@ public class AutoScaledGroupTest {
         // Set up auto-scaled group
         assertEquals("Warnings or errors logged too early", 0, appender.getLog().size());
         AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
-        autoScaledGroup.applyAndWait(5000);
+        autoScaledGroup.apply(5000);
 
         // Non-matching parts should remain untouched
         List<Profile> otherContainerProfiles = Arrays.asList(otherContainer.getProfiles());
@@ -191,7 +191,7 @@ public class AutoScaledGroupTest {
         // Set up auto-scaled group
         assertEquals("Warnings or errors logged too early", 0, appender.getLog().size());
         AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
-        autoScaledGroup.applyAndWait(5000);
+        autoScaledGroup.apply(5000);
 
         // We should have a new container to accommodate the third profile
         assertEquals("Too few containers", 2, autoScaledGroup.getGrandChildren().size());
@@ -256,9 +256,9 @@ public class AutoScaledGroupTest {
         // Set up auto-scaled group
         assertEquals("Warnings or errors logged too early", 0, appender.getLog().size());
         AutoScaledGroup autoScaledGroup = new AutoScaledGroup("test", options, containerList.toArray(new Container[containerList.size()]), profileRequirements.toArray(new ProfileRequirements[profileRequirements.size()]), new ContainerFactory(fabricService));
-        autoScaledGroup.applyAndWait(5000);
+        autoScaledGroup.apply(5000);
 
-        // We should have two container left
+        // We should have two containers left
         assertEquals("Wrong number of auto-scaled containers", 2, autoScaledGroup.getGrandChildren().size());
         assertEquals("autoScaledGroup has wrong number of min1Profile instances", 1, autoScaledGroup.getProfileCount(min1Profile));
 

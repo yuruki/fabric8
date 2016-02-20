@@ -128,12 +128,10 @@ public class AutoScaledGroup extends ProfileContainer {
     private String createContainerId() throws Exception {
         if (options.getContainerPattern().reset(options.getContainerPrefix()).matches()) {
             Set<String> containerNames = new HashSet<>();
-            for (ProfileContainer host : getChildren()) {
-                for (ProfileContainer container : host.getChildren()) {
-                    containerNames.add(container.getId());
-                }
+            for (ProfileContainer container : getEveryGrandChild()) {
+                containerNames.add(container.getId());
             }
-            for (int i = 1; i <= getGrandChildren().size() + 1; i++) {
+            for (int i = 1; i <= containerNames.size() + 1; i++) {
                 if (!containerNames.contains(options.getContainerPrefix() + i)) {
                     return options.getContainerPrefix() + i;
                 }
@@ -277,22 +275,10 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     @Override
-    public boolean hasProfile(String profileId) {
-        for (ProfileContainer container : getGrandChildren()) {
-            if (container.hasProfile(profileId)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
     public void addProfile(ProfileRequirements profile, int count) throws Exception {
         Exception exception = null;
         count: for (int i = 0; i < count; i++) {
-            List<ProfileContainer> containers = getGrandChildren();
-            Collections.sort(containers, new SortByProfileCount());
-            for (ProfileContainer container : containers) {
+            for (ProfileContainer container : getSortedGrandChildren()) {
                 try {
                     container.addProfile(profile);
                     continue count;
@@ -309,8 +295,7 @@ public class AutoScaledGroup extends ProfileContainer {
     @Override
     public void removeProfile(String profile, int count) {
         for (int i = 0; i < count; i++) {
-            List<ProfileContainer> containers = getGrandChildren();
-            Collections.sort(containers, new SortByProfileCount());
+            List<ProfileContainer> containers = getSortedGrandChildren();
             Collections.reverse(containers);
             for (ProfileContainer container : containers) {
                 if (container.hasProfile(profile)) {
@@ -330,7 +315,7 @@ public class AutoScaledGroup extends ProfileContainer {
     }
 
     public void apply() {
-        Set<ProfileContainer> containers = new HashSet<>(getGrandChildren());
+        Set<ProfileContainer> containers = new HashSet<>(getEveryGrandChild());
         if (containers.isEmpty()) {
             LOGGER.debug("No changes to apply");
             return;
@@ -342,8 +327,8 @@ public class AutoScaledGroup extends ProfileContainer {
         taskExecutor.shutdown();
     }
 
-    public void applyAndWait(long maxWaitInMillis) {
-        Set<ProfileContainer> containers = new HashSet<>(getGrandChildren());
+    public void apply(long maxWaitInMillis) {
+        Set<ProfileContainer> containers = new HashSet<>(getEveryGrandChild());
         ExecutorService taskExecutor = Executors.newFixedThreadPool(containers.size());
         for (ProfileContainer container : containers) {
             taskExecutor.execute((AutoScaledContainer) container);
@@ -354,14 +339,6 @@ public class AutoScaledGroup extends ProfileContainer {
         } catch (InterruptedException e) {
             e.printStackTrace(); // ignored
         }
-    }
-
-    public List<ProfileContainer> getGrandChildren() {
-        List<ProfileContainer> result = new ArrayList<>();
-        for (ProfileContainer host : getChildren()) {
-            result.addAll(host.childMap.values()); // Get every container, even the ones marked for removal
-        }
-        return result;
     }
 
     public AutoScaledGroupOptions getOptions() {

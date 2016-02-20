@@ -36,7 +36,7 @@ public abstract class ProfileContainer {
     }
 
     public boolean hasProfile(String profileId) {
-        for (ProfileContainer child : childMap.values()) {
+        for (ProfileContainer child : getChildren()) {
             if (child.hasProfile(profileId)) {
                 return true;
             }
@@ -67,15 +67,19 @@ public abstract class ProfileContainer {
     }
 
     final public void removeProfile(Profile profile) {
-        removeProfile(profile.getId(), 1);
-    }
-
-    final public void removeProfile(String profileId) {
-        removeProfile(profileId, 1);
+        removeProfile(profile.getId());
     }
 
     final public void removeProfile(ProfileRequirements profile) {
-        removeProfile(profile.getProfile(), 1);
+        removeProfile(profile.getProfile());
+    }
+
+    public void removeProfile(String profile) {
+        for (ProfileContainer child : getChildren()) {
+            if (child.hasProfile(profile)) {
+                child.removeProfile(profile);
+            }
+        }
     }
 
     final public void removeProfile(ProfileRequirements profile, int count) {
@@ -97,7 +101,7 @@ public abstract class ProfileContainer {
 
     public int getProfileCount() {
         int count = 0;
-        for (ProfileContainer child : childMap.values()) {
+        for (ProfileContainer child : getChildren()) {
             count += child.getProfileCount();
         }
         return count;
@@ -113,7 +117,7 @@ public abstract class ProfileContainer {
 
     public int getProfileCount(String profileId) {
         int count = 0;
-        for (ProfileContainer child : childMap.values()) {
+        for (ProfileContainer child : getChildren()) {
             count += child.getProfileCount(profileId);
         }
         return count;
@@ -145,15 +149,19 @@ public abstract class ProfileContainer {
         return result;
     }
 
+    final public List<ProfileContainer> getEveryChild() {
+        return new ArrayList<>(childMap.values());
+    }
+
     final public List<ProfileContainer> getSortedChildren() {
-        List<ProfileContainer> result = new LinkedList<>(childMap.values());
+        List<ProfileContainer> result = new LinkedList<>(getChildren());
         Collections.sort(result, childComparator);
         return result;
     }
 
     final public List<ProfileContainer> getRemovableChildren() {
         List<ProfileContainer> result = new ArrayList<>();
-        for (ProfileContainer child : childMap.values()) {
+        for (ProfileContainer child : getChildren()) {
             if (child.isRemovable()) {
                 result.add(child);
             }
@@ -179,6 +187,36 @@ public abstract class ProfileContainer {
             List<ProfileContainer> children = new LinkedList<>(getSortedChildren());
             children.get(children.size()).removeProfiles(1);
         }
+    }
+
+    final public List<ProfileContainer> getGrandChildren() {
+        List<ProfileContainer> result = new ArrayList<>();
+        for (ProfileContainer child : getChildren()) {
+            result.addAll(child.getChildren());
+        }
+        return result;
+    }
+
+    final public List<ProfileContainer> getSortedGrandChildren() {
+        List<ProfileContainer> result = new LinkedList<>();
+        Comparator<ProfileContainer> grandChildComparator = null;
+        for (ProfileContainer child : getChildren()) {
+            List<ProfileContainer> grandChildren = new ArrayList<>(child.getChildren());
+            if (grandChildComparator == null && !grandChildren.isEmpty()) {
+                grandChildComparator = grandChildren.get(0).childComparator;
+            }
+            result.addAll(grandChildren);
+        }
+        Collections.sort(result, grandChildComparator);
+        return result;
+    }
+
+    final public List<ProfileContainer> getEveryGrandChild() {
+        List<ProfileContainer> result = new ArrayList<>();
+        for (ProfileContainer child : getChildren()) {
+            result.addAll(child.getEveryChild());
+        }
+        return result;
     }
 
     public static class SortByProfileCount implements Comparator<ProfileContainer> {

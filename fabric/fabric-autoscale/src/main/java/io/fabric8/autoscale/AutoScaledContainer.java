@@ -120,8 +120,13 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     }
 
     @Override
+    public void removeProfile(String profile) {
+        profiles.put(profile, false);
+    }
+
+    @Override
     public void removeProfile(String profile, int count) {
-        profiles.put(profile, false); // Ignore count
+        removeProfile(profile); // Ignore count
     }
 
     public void removeProfiles(long count) {
@@ -134,14 +139,6 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
     @Override
     public boolean hasProfile(String profileId) {
         return profiles.containsKey(profileId) && profiles.get(profileId);
-    }
-
-    @Override
-    public void remove() {
-        super.remove();
-        for (String key : profiles.keySet()) {
-            profiles.put(key, false);
-        }
     }
 
     @Override
@@ -227,7 +224,7 @@ public class AutoScaledContainer extends ProfileContainer implements Runnable {
                 }
             } else {
                 // Create container
-                // TODO: generalize for any provider, null checks
+                // TODO: generalize for any provider
                 try {
                     containerFactory.createChildContainer(id, sortedResult.toArray(new String[sortedResult.size()]), ((AutoScaledHost) host).getRootContainer());
                 } catch (Exception e) {
